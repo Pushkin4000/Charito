@@ -182,7 +182,7 @@ export function Layout() {
             }}
           >
             <span style={{ fontSize: "var(--t-small)", color: "var(--ink-3)" }}>
-              Charito — prompt in, inspectable project out.
+              Charito — the agentic coding platform for tinkerers.
             </span>
             <span className="meta" style={{ color: "var(--ink-4)" }}>
               LangGraph · FastAPI · Groq · React

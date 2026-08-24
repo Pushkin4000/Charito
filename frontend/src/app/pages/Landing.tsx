@@ -95,11 +95,14 @@ export function Landing() {
       {/* ── Opening ───────────────────────────────────────────────────────── */}
       <section>
         <p className="label" style={{ marginBottom: 20 }}>
-          Agentic coding runtime
+          planner → architect → coder
         </p>
 
-        <h1 className="display" style={{ maxWidth: "17ch" }}>
-          A coding agent that shows its working
+        {/* The qualifier drops to a lighter neutral rather than taking a colour:
+            emphasis in this system comes from value, never from hue. */}
+        <h1 className="display" style={{ maxWidth: "16ch" }}>
+          The agentic coding platform{" "}
+          <span style={{ color: "var(--ink-3)" }}>for tinkerers</span>
         </h1>
 
         <p className="lead" style={{ marginTop: 24, maxWidth: "62ch" }}>

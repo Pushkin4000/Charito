@@ -1,1 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Sora:wght@500;600;700&display=swap');
+/* Voice: Instrument Sans — a grotesque with slightly narrow proportions and a
+   distinctive single-storey g. Two weights, 400 and 600.
+   Apparatus: IBM Plex Mono — labels, metadata, code, file paths, node names. */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');

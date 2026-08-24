@@ -9,20 +9,12 @@ import {
   FolderOpen,
   ChevronRight,
   ChevronDown,
-  Terminal,
-  Activity,
-  CheckCircle2,
-  Clock,
   Loader2,
   X,
-  AlertCircle,
   Key,
   Eye,
   EyeOff,
   RotateCcw,
-  SlidersHorizontal,
-  ShieldCheck,
-  Info,
 } from "lucide-react";
 import type { NodeId, PromptNodeSchema, WorkspaceTreeNode } from "@/app/lib/api-client";
 import {
@@ -36,8 +28,19 @@ import {
   saveApiKey,
 } from "@/app/lib/api-key-storage";
 import { useAgentStore } from "@/app/store/useAgentStore";
+import { BackendPanel } from "@/app/components/BackendNotice";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────────────────────
+   The studio runs on the dark surface — same two materials as the rest of the
+   site, swapped. It is a three-pane instrument above 768px and a scrolling
+   document below it, so nothing gets crushed to nothing on a phone.
+
+   Almost everything here is still: only run state, arriving log lines and
+   dialogs move. The tree, the editor, the toolbar and the tabs do not.
+
+   Mount ids and data-agent-* attributes below are load-bearing — they are the
+   stitching contract documented in README_STITCHING.md. Do not rename them.
+   ───────────────────────────────────────────────────────────────────────── */
 
 type NodeStatus = "idle" | "running" | "done" | "error";
 type RightPanelTab = "graph" | "prompts";
@@ -49,24 +52,29 @@ interface FileNode {
   children?: FileNode[];
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const NODE_UI_CONFIG: Record<NodeId, { label: string; color: string; placeholder: string }> = {
+const NODE_UI_CONFIG: Record<NodeId, { label: string; index: string; placeholder: string }> = {
   planner: {
-    label: "Planner",
-    color: "#a78bfa",
+    label: "planner",
+    index: "01",
     placeholder: "Override the planner's mutable prompt body...",
   },
   architect: {
-    label: "Architect",
-    color: "#06b6d4",
+    label: "architect",
+    index: "02",
     placeholder: "Override the architect's mutable prompt body...",
   },
   coder: {
-    label: "Coder",
-    color: "#34d399",
+    label: "coder",
+    index: "03",
     placeholder: "Override the coder's mutable prompt body...",
   },
+};
+
+const SEVERITY_COLOR: Record<string, string> = {
+  info: "var(--ink-2)",
+  success: "var(--ok)",
+  warn: "var(--warn)",
+  error: "var(--bad)",
 };
 
 function toFileNodes(nodes: WorkspaceTreeNode[]): FileNode[] {
@@ -138,36 +146,10 @@ function formatLogDetails(details: Record<string, unknown> | null | undefined): 
   return entries
     .slice(0, 4)
     .map(([key, value]) => `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value)}`)
-    .join(" | ");
+    .join("  ");
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function NodeBadge({ name }: { name: string }) {
-  const colors: Record<string, { bg: string; color: string }> = {
-    planner: { bg: "rgba(167,139,250,0.12)", color: "#a78bfa" },
-    architect: { bg: "rgba(6,182,212,0.12)", color: "#06b6d4" },
-    coder: { bg: "rgba(52,211,153,0.12)", color: "#34d399" },
-    system: { bg: "rgba(226,232,240,0.08)", color: "rgba(226,232,240,0.4)" },
-  };
-  const c = colors[name] || colors.system;
-  return (
-    <span
-      style={{
-        padding: "1px 7px",
-        borderRadius: 4,
-        fontSize: 10,
-        fontFamily: "'JetBrains Mono', monospace",
-        fontWeight: 600,
-        background: c.bg,
-        color: c.color,
-        flexShrink: 0,
-      }}
-    >
-      {name}
-    </span>
-  );
-}
 
 function FileTreeNode({
   node,
@@ -186,47 +168,25 @@ function FileTreeNode({
     return (
       <div>
         <button
+          type="button"
+          className="tree-row"
           onClick={() => setOpen(!open)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            padding: `5px 8px 5px ${12 + depth * 14}px`,
-            width: "100%",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "rgba(226,232,240,0.55)",
-            fontSize: 12,
-            borderRadius: 4,
-            textAlign: "left",
-          }}
+          style={{ paddingLeft: 10 + depth * 13 }}
         >
-          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          {open ? <FolderOpen size={13} color="#fbbf24" /> : <Folder size={13} color="#fbbf24" />}
-          <span>{node.name}</span>
+          {open ? <ChevronDown size={11} strokeWidth={1.75} /> : <ChevronRight size={11} strokeWidth={1.75} />}
+          {open ? <FolderOpen size={12} strokeWidth={1.75} /> : <Folder size={12} strokeWidth={1.75} />}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{node.name}</span>
         </button>
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              style={{ overflow: "hidden" }}
-            >
-              {node.children?.map((child) => (
-                <FileTreeNode
-                  key={child.path}
-                  node={child}
-                  depth={depth + 1}
-                  activeFile={activeFile}
-                  onOpen={onOpen}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {open &&
+          node.children?.map((child) => (
+            <FileTreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              activeFile={activeFile}
+              onOpen={onOpen}
+            />
+          ))}
       </div>
     );
   }
@@ -234,105 +194,99 @@ function FileTreeNode({
   const isActive = activeFile === node.path;
   return (
     <button
+      type="button"
+      className="tree-row"
+      data-active={isActive}
       data-agent-action="open-file"
       data-agent-file-path={node.path}
       onClick={() => onOpen(node.path)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: `5px 8px 5px ${22 + depth * 14}px`,
-        width: "100%",
-        background: isActive ? "rgba(124,58,237,0.15)" : "none",
-        border: "none",
-        cursor: "pointer",
-        color: isActive ? "#a78bfa" : "rgba(226,232,240,0.55)",
-        fontSize: 12,
-        borderRadius: 4,
-        textAlign: "left",
-        transition: "all 0.15s",
-        fontFamily: isActive ? "'JetBrains Mono', monospace" : "inherit",
-      }}
+      style={{ paddingLeft: 22 + depth * 13 }}
+      title={node.path}
     >
-      <FileCode2 size={12} />
-      <span>{node.name}</span>
+      <FileCode2 size={12} strokeWidth={1.75} />
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{node.name}</span>
     </button>
   );
 }
 
-function GraphNode({
+/**
+ * The graph, as a stacked register rather than three boxes squeezed into a
+ * narrow column. The node is identified by name; colour says only what state
+ * it is in, so the panel still reads correctly in greyscale.
+ */
+function NodeRow({
+  index,
   label,
   status,
-  color,
+  note,
 }: {
+  index: string;
   label: string;
   status: NodeStatus;
-  color: string;
+  note?: string | null;
 }) {
-  const statusLabel: Record<NodeStatus, string> = {
-    idle: "idle",
-    running: "running",
-    done: "done",
-    error: "error",
+  const statusWord: Record<NodeStatus, string> = {
+    idle: "Idle",
+    running: "Running",
+    done: "Done",
+    error: "Error",
+  };
+  const statusColor: Record<NodeStatus, string> = {
+    idle: "var(--ink-4)",
+    running: "var(--accent)",
+    done: "var(--ok)",
+    error: "var(--bad)",
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-      <motion.div
-        animate={
-          status === "running"
-            ? { boxShadow: [`0 0 0px ${color}`, `0 0 18px ${color}55`, `0 0 0px ${color}`] }
-            : {}
-        }
-        transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: 14,
-          border: `2px solid ${status === "idle" ? "rgba(255,255,255,0.08)" : color}`,
-          background: status === "idle" ? "rgba(255,255,255,0.02)" : `${color}15`,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 3,
-          transition: "all 0.4s ease",
-        }}
-      >
-        {status === "running" && (
-          <Loader2 size={16} color={color} style={{ animation: "spin 1s linear infinite" }} />
-        )}
-        {status === "done" && <CheckCircle2 size={16} color={color} />}
-        {status === "idle" && <Clock size={16} color="rgba(226,232,240,0.2)" />}
-        {status === "error" && <AlertCircle size={16} color="#f87171" />}
+    <div className="node-row" data-state={status}>
+      <span className="num" style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)" }}>
+        {index}
+      </span>
+      <span style={{ minWidth: 0 }}>
         <span
+          className="num"
           style={{
-            fontSize: 9,
-            fontFamily: "'JetBrains Mono', monospace",
-            color: status === "idle" ? "rgba(226,232,240,0.2)" : color,
-            fontWeight: 600,
+            fontSize: "var(--t-small)",
+            color: status === "idle" ? "var(--ink-3)" : "var(--ink)",
           }}
         >
-          {statusLabel[status]}
+          {label}
         </span>
-      </motion.div>
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          color: status === "idle" ? "rgba(226,232,240,0.25)" : color,
-          fontFamily: "'JetBrains Mono', monospace",
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-        }}
+        {note && (
+          <span
+            className="num"
+            style={{ display: "block", fontSize: "var(--t-micro)", color: "var(--ink-4)", marginTop: 3 }}
+          >
+            {note}
+          </span>
+        )}
+      </span>
+      <span
+        className={status === "running" ? "label breathe" : "label"}
+        style={{ color: statusColor[status] }}
       >
-        {label}
-      </div>
+        {statusWord[status]}
+      </span>
     </div>
   );
 }
 
-// ─── API Key Modal ────────────────────────────────────────────────────────────
+// ─── Dialogs ──────────────────────────────────────────────────────────────────
+
+const overlayMotion = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.11 },
+};
+
+const dialogMotion = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 5, transition: { duration: 0.11, ease: [0.55, 0, 1, 0.45] as const } },
+  transition: { duration: 0.19, ease: [0.16, 1, 0.3, 1] as const },
+};
 
 function ApiKeyModal({
   onClose,
@@ -355,247 +309,116 @@ function ApiKeyModal({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "rgba(0,0,0,0.65)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-      onClick={onClose}
-    >
+    <motion.div className="overlay" {...overlayMotion} onClick={onClose}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ duration: 0.2 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#0f0f1a",
-          border: "1px solid rgba(124,58,237,0.25)",
-          borderRadius: 16,
-          padding: 28,
-          width: "100%",
-          maxWidth: 480,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.1)",
-        }}
+        className="dialog"
+        {...dialogMotion}
+        onClick={(event) => event.stopPropagation()}
+        style={{ maxWidth: 520 }}
+        role="dialog"
+        aria-label="Groq API key"
       >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+        <div className="dialog__head">
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: "rgba(124,58,237,0.15)",
-                  border: "1px solid rgba(124,58,237,0.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#a78bfa",
-                }}
-              >
-                <Key size={16} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: "#f1f5f9", margin: 0, letterSpacing: "-0.02em" }}>
-                  Groq API Key
-                </h3>
-                <p style={{ fontSize: 11, color: "rgba(226,232,240,0.35)", margin: 0 }}>
-                  Required to run the agent
-                </p>
-              </div>
+            <p className="label label--quiet" style={{ marginBottom: 5 }}>
+              Credentials
+            </p>
+            <h3>Groq API key</h3>
+          </div>
+          <button type="button" className="btn btn--sm btn--bare" onClick={onClose} aria-label="Close">
+            <X size={16} strokeWidth={1.75} />
+          </button>
+        </div>
+
+        <div className="dialog__body">
+          <div className="notice notice--ok" style={{ marginBottom: 10 }}>
+            <div className="notice__body">
+              <div className="notice__title">The key stays in your browser</div>
+              <p className="notice__text">
+                By default it is held in <code className="tick">sessionStorage</code> and cleared
+                when the browser session ends. Tick remember below to move it to{" "}
+                <code className="tick">localStorage</code> instead. It is sent to the backend per
+                run to build the chat model, and never persisted there.
+              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(226,232,240,0.4)", padding: 4 }}
-          >
-            <X size={18} />
-          </button>
-        </div>
 
-        {/* Safety notice */}
-        <div
-          style={{
-            padding: "12px 14px",
-            borderRadius: 10,
-            background: "rgba(52,211,153,0.07)",
-            border: "1px solid rgba(52,211,153,0.18)",
-            marginBottom: 20,
-            display: "flex",
-            gap: 10,
-            alignItems: "flex-start",
-          }}
-        >
-          <ShieldCheck size={15} color="#34d399" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <p style={{ fontSize: 12, color: "#34d399", fontWeight: 600, margin: "0 0 3px" }}>
-              Your key stays in your browser
-            </p>
-            <p style={{ fontSize: 11, color: "rgba(52,211,153,0.7)", margin: 0, lineHeight: 1.6 }}>
-              By default, the key is stored in{" "}
-              <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>sessionStorage</code>{" "}
-              and cleared when the browser session ends. Enable remember mode to persist it in{" "}
-              <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>localStorage</code>.
-            </p>
+          <div className="notice notice--warn" style={{ marginBottom: 22 }}>
+            <div className="notice__body">
+              <div className="notice__title">Free tier has token-per-minute limits</div>
+              <p className="notice__text">
+                A run makes several model calls. Ask for something small and focused — a
+                single-file FastAPI health check rather than a multi-module app — or the limit will
+                stop the run half way.
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Free tier notice */}
-        <div
-          style={{
-            padding: "12px 14px",
-            borderRadius: 10,
-            background: "rgba(251,191,36,0.07)",
-            border: "1px solid rgba(251,191,36,0.18)",
-            marginBottom: 20,
-            display: "flex",
-            gap: 10,
-            alignItems: "flex-start",
-          }}
-        >
-          <Info size={15} color="#fbbf24" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <p style={{ fontSize: 12, color: "#fbbf24", fontWeight: 600, margin: "0 0 3px" }}>
-              Groq free tier has rate limits
-            </p>
-            <p style={{ fontSize: 11, color: "rgba(251,191,36,0.7)", margin: 0, lineHeight: 1.6 }}>
-              The free plan has token-per-minute and request limits. For best results, prompt for{" "}
-              <strong style={{ color: "#fbbf24" }}>small, focused projects</strong> — e.g. "a single-file FastAPI health check endpoint" rather
-              than a full multi-module app. Complex prompts may exhaust the limit mid-run.
-            </p>
+          <label className="label" htmlFor="groq-key-input" style={{ display: "block", marginBottom: 7 }}>
+            Key
+          </label>
+          <div style={{ position: "relative", marginBottom: 14 }}>
+            <input
+              id="groq-key-input"
+              className="field"
+              type={showKey ? "text" : "password"}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder="gsk_..."
+              style={{ paddingRight: 40 }}
+              onKeyDown={(event) => event.key === "Enter" && handleSave()}
+            />
+            <button
+              type="button"
+              className="btn btn--sm btn--bare"
+              onClick={() => setShowKey(!showKey)}
+              aria-label={showKey ? "Hide key" : "Show key"}
+              style={{ position: "absolute", right: 3, top: "50%", transform: "translateY(-50%)" }}
+            >
+              {showKey ? <EyeOff size={14} strokeWidth={1.75} /> : <Eye size={14} strokeWidth={1.75} />}
+            </button>
           </div>
-        </div>
 
-        {/* Input */}
-        <label style={{ display: "block", marginBottom: 6, fontSize: 12, fontWeight: 600, color: "rgba(226,232,240,0.6)" }}>
-          API Key
-        </label>
-        <div style={{ position: "relative", marginBottom: 20 }}>
-          <input
-            type={showKey ? "text" : "password"}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="gsk_••••••••••••••••••••••••••••••••"
+          <label
             style={{
-              width: "100%",
-              padding: "10px 40px 10px 12px",
-              borderRadius: 8,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#e2e8f0",
-              fontSize: 13,
-              fontFamily: "'JetBrains Mono', monospace",
-              outline: "none",
-              boxSizing: "border-box",
-            }}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-          />
-          <button
-            onClick={() => setShowKey(!showKey)}
-            style={{
-              position: "absolute",
-              right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "rgba(226,232,240,0.35)",
               display: "flex",
               alignItems: "center",
-              padding: 0,
+              gap: 9,
+              marginBottom: 16,
+              fontSize: "var(--t-small)",
+              color: "var(--ink-3)",
+              cursor: "pointer",
             }}
           >
-            {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(event) => setRemember(event.target.checked)}
+              style={{ accentColor: "var(--accent)" }}
+            />
+            Remember this key on this device (localStorage)
+          </label>
+
+          <p className="meta">
+            No key yet?{" "}
+            <a className="link" href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">
+              console.groq.com/keys
+            </a>
+          </p>
         </div>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 20,
-            fontSize: 11,
-            color: "rgba(226,232,240,0.45)",
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(event) => setRemember(event.target.checked)}
-            style={{ accentColor: "#7c3aed" }}
-          />
-          Remember key on this device (uses localStorage).
-        </label>
-
-        {/* Get key link */}
-        <p style={{ fontSize: 11, color: "rgba(226,232,240,0.3)", marginBottom: 20, lineHeight: 1.6 }}>
-          Don't have a key?{" "}
-          <a
-            href="https://console.groq.com/keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#a78bfa", textDecoration: "none" }}
-          >
-            Get one free at console.groq.com →
-          </a>
-        </p>
-
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              padding: "9px 0",
-              borderRadius: 7,
-              fontSize: 13,
-              fontWeight: 600,
-              color: "rgba(226,232,240,0.5)",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              cursor: "pointer",
-            }}
-          >
+        <div className="dialog__foot">
+          <button type="button" className="btn" onClick={onClose} style={{ flex: 1 }}>
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            style={{
-              flex: 2,
-              padding: "9px 0",
-              borderRadius: 7,
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#fff",
-              background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 0 16px rgba(124,58,237,0.3)",
-            }}
-          >
-            Save Key
+          <button type="button" className="btn btn--primary" onClick={handleSave} style={{ flex: 2 }}>
+            Save key
           </button>
         </div>
       </motion.div>
     </motion.div>
   );
 }
-
-// ─── Prompt Override Panel ─────────────────────────────────────────────────────
 
 function WorkspaceRolloverModal({
   workspaceId,
@@ -613,105 +436,67 @@ function WorkspaceRolloverModal({
   onStartFresh: () => void;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "rgba(0,0,0,0.65)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-      onClick={onClose}
-    >
+    <motion.div className="overlay" {...overlayMotion} onClick={onClose}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ duration: 0.2 }}
+        className="dialog"
+        {...dialogMotion}
         onClick={(event) => event.stopPropagation()}
-        style={{
-          background: "#0f0f1a",
-          border: "1px solid rgba(124,58,237,0.25)",
-          borderRadius: 14,
-          padding: 22,
-          width: "100%",
-          maxWidth: 460,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
-        }}
+        style={{ maxWidth: 460 }}
+        role="dialog"
+        aria-label="Start a new run"
       >
-        <h3 style={{ margin: "0 0 8px", fontSize: 15, color: "#f1f5f9", letterSpacing: "-0.02em", fontWeight: 700 }}>
-          Start New Run
-        </h3>
-        <p style={{ margin: 0, fontSize: 12, color: "rgba(226,232,240,0.45)", lineHeight: 1.65 }}>
-          Choose whether to continue in the current workspace or start in a fresh workspace.
-        </p>
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 11,
-            color: "rgba(226,232,240,0.5)",
-            lineHeight: 1.6,
-          }}
-        >
-          <div>current workspace: {workspaceId ?? "not initialized yet"}</div>
-          <div>files currently visible: {fileCount}</div>
+        <div className="dialog__head">
+          <div>
+            <p className="label label--quiet" style={{ marginBottom: 5 }}>
+              New run
+            </p>
+            <h3>Where should it write?</h3>
+          </div>
+          <button type="button" className="btn btn--sm btn--bare" onClick={onClose} aria-label="Close">
+            <X size={16} strokeWidth={1.75} />
+          </button>
         </div>
 
-        {!canContinueWorkspace && (
-          <div style={{ marginTop: 10, fontSize: 11, color: "#fbbf24", lineHeight: 1.6 }}>
-            Continue mode is unavailable until a workspace session exists.
-          </div>
-        )}
+        <div className="dialog__body">
+          <p style={{ fontSize: "var(--t-small)", lineHeight: 1.65, color: "var(--ink-2)", marginBottom: 18 }}>
+            This workspace already holds files. Continuing lets the agent read and extend them; a
+            fresh workspace starts from nothing.
+          </p>
+          <dl className="spec">
+            <dt>Workspace</dt>
+            <dd className="num" style={{ wordBreak: "break-all" }}>
+              {workspaceId ?? "not initialized yet"}
+            </dd>
+            <dt>Files</dt>
+            <dd className="num">{fileCount}</dd>
+          </dl>
+          {!canContinueWorkspace && (
+            <p className="meta" style={{ marginTop: 12, color: "var(--warn)" }}>
+              Continue is unavailable until a workspace session exists.
+            </p>
+          )}
+        </div>
 
-        <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+        <div className="dialog__foot">
           <button
+            type="button"
+            className="btn"
             onClick={onContinue}
             disabled={!canContinueWorkspace}
-            style={{
-              flex: 1,
-              padding: "9px 10px",
-              borderRadius: 7,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.04)",
-              color: canContinueWorkspace ? "rgba(226,232,240,0.75)" : "rgba(226,232,240,0.35)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: canContinueWorkspace ? "pointer" : "not-allowed",
-            }}
+            style={{ flex: 1 }}
           >
-            Continue Current Workspace
+            Continue current
           </button>
-          <button
-            onClick={onStartFresh}
-            style={{
-              flex: 1,
-              padding: "9px 10px",
-              borderRadius: 7,
-              border: "1px solid rgba(52,211,153,0.28)",
-              background: "rgba(52,211,153,0.12)",
-              color: "#34d399",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Start Fresh Workspace
+          <button type="button" className="btn btn--primary" onClick={onStartFresh} style={{ flex: 1 }}>
+            Start fresh
           </button>
         </div>
       </motion.div>
     </motion.div>
   );
 }
+
+// ─── Prompt override panel ────────────────────────────────────────────────────
 
 function PromptOverridePanel({
   promptSchema,
@@ -736,6 +521,7 @@ function PromptOverridePanel({
   const isModified = currentOverride.trim().length > 0;
   const lockedHeader = buildLockedPromptHeader(immutableRules, schemaNode?.immutable_prefix ?? "");
   const editorValue = composePromptEditorValue(lockedHeader, editableValue);
+  const overLimit = editableValue.length > maxMutableChars;
 
   const handleEditorChange = (nextEditorValue: string) => {
     const editableSuffix = extractEditablePromptSuffix(nextEditorValue, lockedHeader);
@@ -746,39 +532,30 @@ function PromptOverridePanel({
   };
 
   return (
-    <div style={{ overflowY: "auto", flex: 1 }}>
-      <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <SlidersHorizontal size={12} color="#a78bfa" />
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#a78bfa", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            System Prompt Editor
-          </span>
-        </div>
-        {/* <p style={{ fontSize: 11, color: "rgba(226,232,240,0.35)", margin: 0, lineHeight: 1.6 }}>
-          Select a node and edit only the section below the divider. Immutable system prompt content is visible but locked.
-        </p> */}
-      </div>
-
-      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", gap: 6 }}>
+    <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex" }}>
           {nodeKeys.map((nodeKey) => {
             const nodeCfg = NODE_UI_CONFIG[nodeKey];
             const selected = selectedNode === nodeKey;
             return (
               <button
                 key={nodeKey}
+                type="button"
                 onClick={() => setSelectedNode(nodeKey)}
+                className="num"
                 style={{
                   flex: 1,
-                  padding: "7px 0",
-                  borderRadius: 6,
-                  border: `1px solid ${selected ? `${nodeCfg.color}55` : "rgba(255,255,255,0.1)"}`,
-                  background: selected ? `${nodeCfg.color}18` : "rgba(255,255,255,0.03)",
-                  color: selected ? nodeCfg.color : "rgba(226,232,240,0.5)",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  padding: "7px 4px",
+                  border: "1px solid var(--rule)",
+                  borderRightWidth: nodeKey === "coder" ? 1 : 0,
+                  borderBottomWidth: 2,
+                  borderBottomColor: selected ? "var(--accent)" : "var(--rule)",
+                  background: selected ? "var(--surface-2)" : "transparent",
+                  color: selected ? "var(--ink)" : "var(--ink-4)",
+                  fontSize: "var(--t-micro)",
                   cursor: "pointer",
+                  transition: "color var(--dur-fast) linear, border-color var(--dur-fast) linear",
                 }}
               >
                 {nodeCfg.label}
@@ -787,117 +564,55 @@ function PromptOverridePanel({
           })}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: cfg.color,
-                boxShadow: `0 0 6px ${cfg.color}88`,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: cfg.color,
-                fontFamily: "'JetBrains Mono', monospace",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-              }}
-            >
-              {cfg.label}
-            </span>
-            {isModified && (
-              <span
-                style={{
-                  fontSize: 9,
-                  padding: "1px 6px",
-                  borderRadius: 100,
-                  background: `${cfg.color}18`,
-                  color: cfg.color,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontWeight: 600,
-                }}
-              >
-                override
-              </span>
-            )}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <span className="label">
+            {cfg.index} · {cfg.label}
+            {isModified ? " · overridden" : ""}
+          </span>
           {isModified && (
             <button
+              type="button"
+              className="btn btn--sm btn--bare"
               onClick={() => onChange(selectedNode, "")}
-              title="Reset to backend default mutable text"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "rgba(226,232,240,0.35)",
-                display: "flex",
-                alignItems: "center",
-                gap: 3,
-                fontSize: 10,
-                padding: "2px 4px",
-                borderRadius: 4,
-              }}
+              title="Reset to the backend default mutable text"
             >
-              <RotateCcw size={10} />
-              reset
+              <RotateCcw size={11} strokeWidth={1.75} />
+              Reset
             </button>
           )}
         </div>
 
         <textarea
+          className="field"
           value={editorValue}
           onChange={(event) => handleEditorChange(event.target.value)}
+          placeholder={cfg.placeholder}
           rows={18}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.02)",
-            border: `1px solid ${isModified ? `${cfg.color}35` : "rgba(255,255,255,0.09)"}`,
-            color: "#c4ccd8",
-            fontSize: 11,
-            fontFamily: "'JetBrains Mono', monospace",
-            lineHeight: 1.65,
-            resize: "vertical",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
+          spellCheck={false}
+          style={{ lineHeight: 1.7, resize: "vertical" }}
         />
-        <div
-          style={{
-            fontSize: 10,
-            color: editableValue.length > maxMutableChars ? "#f87171" : "rgba(226,232,240,0.3)",
-            textAlign: "right",
-          }}
-        >
-          {editableValue.length} / {maxMutableChars} chars
-        </div>
 
         <div
+          className="num"
           style={{
-            padding: "10px 12px",
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            fontSize: "var(--t-micro)",
+            textAlign: "right",
+            color: overLimit ? "var(--bad)" : "var(--ink-4)",
           }}
         >
-          <p style={{ fontSize: 10, color: "rgba(226,232,240,0.3)", margin: 0, lineHeight: 1.7 }}>
-            Locked text is read-only. Only text below the divider is sent via{" "}
-            <code style={{ fontFamily: "'JetBrains Mono', monospace", color: "#a78bfa" }}>prompt_overrides</code>{" "}
-            for <strong style={{ color: cfg.color }}>{cfg.label}</strong>. Max {maxMutableChars} characters.
-          </p>
+          {editableValue.length} / {maxMutableChars}
         </div>
+
+        <p className="meta" style={{ fontSize: "var(--t-micro)", lineHeight: 1.7, color: "var(--ink-4)" }}>
+          Everything above the divider is locked. Only the text below it is sent, as{" "}
+          <span style={{ color: "var(--ink-2)" }}>prompt_overrides</span> for {cfg.label}.
+        </p>
       </div>
     </div>
   );
 }
 
-// ─── Main Studio Component ────────────────────────────────────────────────────
+// ─── Studio ───────────────────────────────────────────────────────────────────
 
 export function LiveStudio() {
   const [prompt, setPrompt] = useState("Build a minimal FastAPI health check endpoint with one GET route.");
@@ -1067,13 +782,6 @@ export function LiveStudio() {
     shouldStickToBottomRef.current = distanceFromBottom <= 48;
   };
 
-  const sevColor: Record<string, string> = {
-    info: "rgba(226,232,240,0.5)",
-    success: "#34d399",
-    warn: "#fbbf24",
-    error: "#f87171",
-  };
-
   const fileNodes = useMemo(() => toFileNodes(treeNodes), [treeNodes]);
   const hasRun = logs.some((log) => log.event === "run_complete");
   const fileCount = useMemo(() => countTreeFiles(treeNodes), [treeNodes]);
@@ -1157,427 +865,452 @@ export function LiveStudio() {
     return null;
   }, [activeIteration, activeNodeId, coderFileProgress]);
 
-  return (
-    <div style={{ height: "calc(100vh - 64px)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'JetBrains Mono', monospace" }}>
+  const coderNote =
+    coderFileProgress && (activeNodeId === "coder" || nodeStatuses.coder !== "idle")
+      ? `${coderFileProgress.completedFiles}/${coderFileProgress.totalFiles} files${
+          coderFileProgress.activeFile !== null ? ` · on ${coderFileProgress.activeFile}` : ""
+        }`
+      : null;
 
-      {/* ── Toolbar ───────────────────────────────────────────────── */}
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div
         style={{
-          padding: "8px 12px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          padding: "9px 12px",
+          borderBottom: "1px solid var(--hair)",
+          background: "var(--surface)",
           display: "flex",
           alignItems: "center",
           gap: 8,
           flexWrap: "wrap",
-          background: "rgba(255,255,255,0.01)",
           flexShrink: 0,
         }}
       >
-        {/* Prompt input */}
         <textarea
           id="agent-user-prompt"
+          className="field"
           value={prompt}
-          onChange={(e) => handlePromptChange(e.target.value)}
+          onChange={(event) => handlePromptChange(event.target.value)}
           rows={1}
-          placeholder="Describe what to build (keep it simple for free Groq tier)..."
-          style={{
-            flex: "1 1 520px",
-            minWidth: 320,
-            padding: "7px 12px",
-            borderRadius: 6,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.09)",
-            color: "#e2e8f0",
-            fontSize: 12,
-            fontFamily: "'JetBrains Mono', monospace",
-            resize: "none",
-            outline: "none",
-            lineHeight: 1.5,
+          spellCheck={false}
+          placeholder="Describe what to build — keep it small enough for the free Groq tier"
+          style={{ flex: "1 1 420px", minWidth: 240, resize: "none" }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              handleRun();
+            }
           }}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleRun(); } }}
         />
 
-        {/* Run button */}
         <button
           id="agent-run-button"
+          type="button"
           data-agent-action="run-agent"
+          className="btn btn--primary"
           onClick={handleRun}
           disabled={isRunning || !prompt.trim()}
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-            color: isRunning ? "rgba(255,255,255,0.45)" : "#fff",
-            background: isRunning ? "rgba(124,58,237,0.25)" : "linear-gradient(135deg,#7c3aed,#6d28d9)",
-            border: "none", cursor: isRunning ? "not-allowed" : "pointer",
-            boxShadow: isRunning ? "none" : "0 0 14px rgba(124,58,237,0.3)",
-            transition: "all 0.2s", flexShrink: 0,
-          }}
         >
-          {isRunning
-            ? <><Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Running...</>
-            : <><Play size={12} fill="white" /> Run</>}
+          {isRunning ? (
+            <>
+              <Loader2 size={13} strokeWidth={2} className="rotate" />
+              Running
+            </>
+          ) : (
+            <>
+              <Play size={12} strokeWidth={2} fill="currentColor" />
+              Run
+            </>
+          )}
         </button>
 
-        {/* Download */}
         <button
           id="agent-download-button"
+          type="button"
           data-agent-action="download-zip"
+          className="btn"
           onClick={handleDownload}
           disabled={fileCount === 0}
-          title="Download workspace as ZIP"
-          style={{
-            display: "flex", alignItems: "center", gap: 4,
-            padding: "7px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-            color: fileCount > 0 ? "rgba(226,232,240,0.65)" : "rgba(226,232,240,0.2)",
-            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
-            cursor: fileCount > 0 ? "pointer" : "not-allowed", flexShrink: 0,
-          }}
+          title="Download the workspace as a ZIP"
         >
-          <Download size={12} />
+          <Download size={13} strokeWidth={1.75} />
           <span className="hidden sm:inline">ZIP</span>
         </button>
 
-        {/* API Key button */}
         <button
+          type="button"
+          className={keyIsSet ? "btn btn--ok" : "btn btn--warn"}
           onClick={() => setShowApiModal(true)}
-          title="Set Groq API Key"
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "7px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-            color: keyIsSet ? "#34d399" : "#fbbf24",
-            background: keyIsSet ? "rgba(52,211,153,0.08)" : "rgba(251,191,36,0.08)",
-            border: `1px solid ${keyIsSet ? "rgba(52,211,153,0.25)" : "rgba(251,191,36,0.25)"}`,
-            cursor: "pointer", flexShrink: 0,
-            transition: "all 0.2s",
-          }}
+          title="Set the Groq API key"
         >
-          <Key size={12} />
+          <Key size={13} strokeWidth={1.75} />
           <span className="hidden sm:inline">{keyIsSet ? "Key set" : "Add key"}</span>
         </button>
 
         <button
+          type="button"
+          className="btn btn--bad"
           onClick={handleResetWorkspace}
-          title="Reset ephemeral workspace session"
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "7px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-            color: "rgba(248,113,113,0.85)",
-            background: "rgba(248,113,113,0.08)",
-            border: "1px solid rgba(248,113,113,0.25)",
-            cursor: "pointer", flexShrink: 0,
-            transition: "all 0.2s",
-          }}
+          title="Reset the ephemeral workspace session"
         >
-          <RotateCcw size={12} />
-          <span className="hidden sm:inline">Reset Session</span>
+          <RotateCcw size={13} strokeWidth={1.75} />
+          <span className="hidden sm:inline">Reset</span>
         </button>
 
-        <div
-          style={{
-            marginLeft: "auto",
-            fontSize: 10,
-            color: "rgba(226,232,240,0.35)",
-            fontFamily: "'JetBrains Mono', monospace",
-            textAlign: "right",
-            lineHeight: 1.4,
-          }}
-        >
-          <div>workspace: {workspaceId ?? "initializing..."}</div>
-          {workspaceExpiresAt && <div>expires: {new Date(workspaceExpiresAt).toLocaleTimeString()}</div>}
+        <div className="hidden lg:block" style={{ marginLeft: "auto", textAlign: "right" }}>
+          <div className="num" style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)" }}>
+            ws {workspaceId ?? "initializing..."}
+          </div>
+          {workspaceExpiresAt && (
+            <div className="num" style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)" }}>
+              expires {new Date(workspaceExpiresAt).toLocaleTimeString([], { hour12: false })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Main panels ───────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
-
-        {/* File Tree */}
-        <div
-          id="agent-file-tree"
-          className="hidden md:block"
-          style={{ width: 190, flexShrink: 0, borderRight: "1px solid rgba(255,255,255,0.06)", overflowY: "auto", padding: "8px 4px" }}
-        >
-          <div style={{ padding: "4px 12px 8px", fontSize: 10, color: "rgba(226,232,240,0.25)", textTransform: "uppercase", letterSpacing: "0.08em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>Files</span>
-            <RefreshCw size={10} style={{ cursor: "pointer" }} data-agent-action="refresh-files" onClick={handleRefresh} />
+      {/* ── Panels ───────────────────────────────────────────────────────── */}
+      <div className="studio-body">
+        {/* File tree */}
+        <div id="agent-file-tree" className="studio-tree">
+          <div className="pane-head" style={{ justifyContent: "space-between" }}>
+            <span className="label">
+              Files {fileCount > 0 && <span style={{ color: "var(--ink-4)" }}>· {fileCount}</span>}
+            </span>
+            <button
+              type="button"
+              className="btn btn--sm btn--bare"
+              data-agent-action="refresh-files"
+              onClick={handleRefresh}
+              aria-label="Refresh files"
+              style={{ padding: 4 }}
+            >
+              <RefreshCw size={11} strokeWidth={1.75} />
+            </button>
           </div>
+
           {fileNodes.length === 0 && (
-            <div style={{ padding: "10px 12px", fontSize: 11, color: "rgba(226,232,240,0.25)" }}>
-              No files yet. Run the agent to generate a project.
-            </div>
+            <p className="meta" style={{ padding: "14px 12px", color: "var(--ink-4)", lineHeight: 1.7 }}>
+              Empty. Run the agent and files appear here as they are written.
+            </p>
           )}
-          {fileNodes.map((f) => (
-            <FileTreeNode key={f.path} node={f} depth={0} activeFile={activeFile} onOpen={handleOpenFile} />
-          ))}
+
+          <div style={{ paddingTop: 4 }}>
+            {fileNodes.map((node) => (
+              <FileTreeNode
+                key={node.path}
+                node={node}
+                depth={0}
+                activeFile={activeFile}
+                onOpen={handleOpenFile}
+              />
+            ))}
+          </div>
+
           {skippedBinary.length > 0 && (
-            <div style={{ marginTop: 8, padding: "0 12px", fontSize: 10, color: "rgba(251,191,36,0.7)" }}>
-              {skippedBinary.length} binary file(s) skipped.
-            </div>
+            <p className="meta" style={{ marginTop: 10, padding: "0 12px", fontSize: "var(--t-micro)", color: "var(--warn)" }}>
+              {skippedBinary.length} binary file(s) skipped
+            </p>
           )}
         </div>
 
         {/* Editor */}
-        <div
-          id="agent-editor"
-          style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderRight: "1px solid rgba(255,255,255,0.06)" }}
-        >
-          {/* Tab bar */}
-          <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", flexShrink: 0, overflowX: "auto", background: "rgba(255,255,255,0.01)" }}>
-            {activeFile && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 12, color: "#a78bfa", borderBottom: "2px solid #7c3aed", background: "rgba(124,58,237,0.07)", cursor: "pointer", flexShrink: 0 }}>
-                <FileCode2 size={11} />
-                <span>{activeFile.split("/").pop()}</span>
-                <X size={10} style={{ opacity: 0.45, cursor: "pointer" }} onClick={() => setActiveFilePath(null)} />
-              </div>
-            )}
-            {activeFile && (
-              <button
-                data-agent-action="save-file"
-                data-agent-file-path={activeFile}
-                data-agent-source-id="agent-editor-input"
-                onClick={handleSaveFile}
-                disabled={!isDirty || isSaving}
-                style={{
-                  marginLeft: "auto",
-                  marginRight: 12,
-                  padding: "6px 10px",
-                  borderRadius: 6,
-                  border: "1px solid rgba(52,211,153,0.3)",
-                  background: "rgba(52,211,153,0.1)",
-                  color: isDirty ? "#34d399" : "rgba(52,211,153,0.45)",
-                  fontSize: 11,
-                  cursor: isDirty ? "pointer" : "not-allowed",
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
-              >
-                {isSaving ? "Saving..." : isDirty ? "Save" : "Saved"}
-              </button>
+        <div id="agent-editor" className="studio-editor">
+          <div
+            className="pane-head"
+            style={{ background: "var(--surface)", padding: activeFile ? "0 10px 0 0" : undefined }}
+          >
+            {activeFile ? (
+              <>
+                <div
+                  className="num"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    alignSelf: "stretch",
+                    padding: "0 14px",
+                    fontSize: "var(--t-small)",
+                    color: "var(--ink)",
+                    background: "var(--bg)",
+                    borderRight: "1px solid var(--hair)",
+                  }}
+                >
+                  <FileCode2 size={11} strokeWidth={1.75} />
+                  <span>{activeFile.split("/").pop()}</span>
+                  {isDirty && <span style={{ color: "var(--warn)" }}>•</span>}
+                  <button
+                    type="button"
+                    onClick={() => setActiveFilePath(null)}
+                    aria-label="Close file"
+                    style={{
+                      background: "none",
+                      border: 0,
+                      padding: 2,
+                      cursor: "pointer",
+                      color: "var(--ink-4)",
+                      display: "flex",
+                    }}
+                  >
+                    <X size={11} strokeWidth={2} />
+                  </button>
+                </div>
+                <span
+                  className="num hidden xl:inline"
+                  style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)", marginLeft: 12 }}
+                >
+                  {activeFile}
+                </span>
+                <button
+                  type="button"
+                  data-agent-action="save-file"
+                  data-agent-file-path={activeFile}
+                  data-agent-source-id="agent-editor-input"
+                  className={isDirty ? "btn btn--sm btn--ok" : "btn btn--sm"}
+                  onClick={handleSaveFile}
+                  disabled={!isDirty || isSaving}
+                  style={{ marginLeft: "auto" }}
+                >
+                  {isSaving ? "Saving" : isDirty ? "Save" : "Saved"}
+                </button>
+              </>
+            ) : (
+              <span className="label label--quiet">Editor</span>
             )}
           </div>
-          {/* Code content */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px", background: "#0a0a14" }}>
+
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--bg)", minHeight: 0 }}>
             {activeFile ? (
               <textarea
                 id="agent-editor-input"
                 value={editorContent}
-                onChange={(e) => setEditorContent(e.target.value)}
+                onChange={(event) => setEditorContent(event.target.value)}
+                spellCheck={false}
                 style={{
                   width: "100%",
                   minHeight: "100%",
                   margin: 0,
-                  fontSize: 12,
+                  padding: "18px 22px",
+                  fontSize: "var(--t-small)",
                   lineHeight: 1.85,
-                  color: "#c4ccd8",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  color: "var(--ink)",
+                  fontFamily: "var(--face-mono)",
                   background: "transparent",
                   border: "none",
                   outline: "none",
                   resize: "none",
                   boxSizing: "border-box",
+                  tabSize: 2,
                 }}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-                    e.preventDefault();
+                onKeyDown={(event) => {
+                  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+                    event.preventDefault();
                     handleSaveFile();
                   }
                 }}
               />
             ) : (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(226,232,240,0.12)", flexDirection: "column", gap: 8 }}>
-                <FileCode2 size={28} />
-                <span style={{ fontSize: 12 }}>Select a file to view and edit</span>
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 32,
+                }}
+              >
+                <p
+                  className="meta"
+                  style={{ color: "var(--ink-4)", textAlign: "center", maxWidth: "44ch", lineHeight: 1.75 }}
+                >
+                  No file open. Pick one from the tree — you can edit it while the run is still
+                  going and save it straight back to the workspace.
+                </p>
               </div>
             )}
           </div>
         </div>
 
         {/* Right panel */}
-        <div style={{ width: 288, display: "flex", flexDirection: "column", flexShrink: 0 }}>
-
-          {/* Tab switcher */}
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-            {([["graph", <Activity size={11} />, "Graph & Logs"] as const, ["prompts", <SlidersHorizontal size={11} />, "System Prompt"] as const]).map(([tab, icon, label]) => (
-              <button
-                key={tab}
-                onClick={() => setRightTab(tab)}
-                style={{
-                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                  padding: "9px 0", fontSize: 11, fontWeight: 600,
-                  color: rightTab === tab ? "#a78bfa" : "rgba(226,232,240,0.35)",
-                  background: rightTab === tab ? "rgba(139,92,246,0.07)" : "transparent",
-                  borderBottom: rightTab === tab ? "2px solid #7c3aed" : "2px solid transparent",
-                  border: "none", cursor: "pointer",
-                  fontFamily: "'JetBrains Mono', monospace",
-                  transition: "all 0.15s",
-                }}
-              >
-                {icon} {label}
-              </button>
-            ))}
+        <div className="studio-aside">
+          <div style={{ display: "flex", borderBottom: "1px solid var(--hair)", flexShrink: 0, background: "var(--surface)" }}>
+            <button
+              type="button"
+              className="tab"
+              data-active={rightTab === "graph"}
+              onClick={() => setRightTab("graph")}
+            >
+              Graph &amp; logs
+            </button>
+            <button
+              type="button"
+              className="tab"
+              data-active={rightTab === "prompts"}
+              onClick={() => setRightTab("prompts")}
+            >
+              Prompts
+            </button>
           </div>
 
-          {/* Graph + Logs tab */}
-          <AnimatePresence mode="wait">
-            {rightTab === "graph" && (
-              <motion.div
-                key="graph"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
-              >
-                {/* Graph viz */}
-                <div id="agent-graph" style={{ padding: "14px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-                  <div style={{ fontSize: 10, color: "rgba(226,232,240,0.22)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, display: "flex", alignItems: "center", gap: 5 }}>
-                    <Activity size={9} /> Agent Graph
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                    <GraphNode label="Planner" status={nodeStatuses.planner} color="#a78bfa" />
-                    <div style={{ flex: 1, height: 2, background: nodeStatuses.planner === "done" ? "linear-gradient(90deg,#a78bfa,#06b6d4)" : "rgba(255,255,255,0.06)", borderRadius: 1, transition: "background 0.5s" }} />
-                    <GraphNode label="Architect" status={nodeStatuses.architect} color="#06b6d4" />
-                    <div style={{ flex: 1, height: 2, background: nodeStatuses.architect === "done" ? "linear-gradient(90deg,#06b6d4,#34d399)" : "rgba(255,255,255,0.06)", borderRadius: 1, transition: "background 0.5s" }} />
-                    <GraphNode label="Coder" status={nodeStatuses.coder} color="#34d399" />
-                  </div>
-                  <AnimatePresence>
-                    {hasRun && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                        style={{ marginTop: 12, padding: "7px 12px", borderRadius: 6, background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.18)", fontSize: 11, color: "#34d399", textAlign: "center" }}
-                      >
-                        Completed, please download using ZIP button - {fileCount} file(s) in workspace
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  {coderFileProgress && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        fontSize: 10,
-                        color: "rgba(226,232,240,0.5)",
-                        textAlign: "center",
-                      }}
-                    >
-                      Coder progress: {coderFileProgress.completedFiles}/{coderFileProgress.totalFiles} files
-                      {coderFileProgress.activeFile !== null
-                        ? ` - working on ${coderFileProgress.activeFile}/${coderFileProgress.totalFiles}`
-                        : ""}
-                    </div>
-                  )}
-                  {activeNodeId && (
-                    <div style={{ marginTop: 8, fontSize: 10, color: "rgba(226,232,240,0.45)", textAlign: "center" }}>
-                      Active node: {activeNodeId}
-                      {activeNodeSummary ? ` (${activeNodeSummary})` : ""}
-                    </div>
+          {rightTab === "graph" && (
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", minHeight: 0 }}>
+              {/* Graph */}
+              <div id="agent-graph" style={{ borderBottom: "1px solid var(--hair)", flexShrink: 0 }}>
+                <div className="pane-head">
+                  <span className="label">Graph</span>
+                  {isRunning && (
+                    <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="dot breathe" style={{ background: "var(--accent)" }} />
+                      <span className="label" style={{ color: "var(--accent)" }}>
+                        Live
+                      </span>
+                    </span>
                   )}
                 </div>
 
-                {/* Logs */}
-                <div id="agent-logs" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
-                  <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: 10, color: "rgba(226,232,240,0.22)", textTransform: "uppercase", letterSpacing: "0.08em", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                    <Terminal size={9} />
-                    Stream Logs
-                    {isRunning && (
-                      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: "#a78bfa" }}>
-                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#a78bfa", animation: "pulse 1s infinite" }} />
-                        LIVE
-                      </span>
-                    )}
+                <NodeRow
+                  index="01"
+                  label="planner"
+                  status={nodeStatuses.planner}
+                  note={activeNodeId === "planner" ? activeNodeSummary : null}
+                />
+                <NodeRow
+                  index="02"
+                  label="architect"
+                  status={nodeStatuses.architect}
+                  note={activeNodeId === "architect" ? activeNodeSummary : null}
+                />
+                <NodeRow index="03" label="coder" status={nodeStatuses.coder} note={coderNote} />
+
+                {hasRun && (
+                  <div className="notice notice--ok" style={{ margin: 10 }}>
+                    <div className="notice__body">
+                      <div className="notice__title">Run complete</div>
+                      <p className="notice__text">
+                        {fileCount} file(s) in the workspace. Take them with the ZIP button.
+                      </p>
+                    </div>
                   </div>
-                  <div ref={logsContainerRef} onScroll={handleLogsScroll} style={{ flex: 1, overflowY: "auto", padding: "6px 8px" }}>
-                    {logs.length === 0 && (
-                      <div style={{ padding: "20px", textAlign: "center", fontSize: 11, color: "rgba(226,232,240,0.15)" }}>
-                        Run the agent to see live logs
-                      </div>
-                    )}
-                    {logs.map((log) => {
-                      const severity = toSeverity(log.severity);
-                      const detailText = formatLogDetails(log.details);
-                      const metaParts = [
-                        typeof log.iteration === "number" ? `iteration=${log.iteration}` : null,
-                        typeof log.duration_ms === "number" ? `duration=${log.duration_ms}ms` : null,
-                        log.error_type ? `type=${log.error_type}` : null,
-                      ].filter(Boolean) as string[];
-                      return (
-                        <motion.div
-                          key={log.id}
-                          initial={{ opacity: 0, x: 4 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.18 }}
-                          style={{
-                            padding: "6px 7px",
-                            borderRadius: 6,
-                            marginBottom: 4,
-                            border:
-                              severity === "error"
-                                ? "1px solid rgba(248,113,113,0.2)"
-                                : "1px solid rgba(255,255,255,0.04)",
-                            background:
-                              severity === "error"
-                                ? "rgba(248,113,113,0.06)"
-                                : "rgba(255,255,255,0.015)",
-                          }}
-                        >
-                          <div style={{ display: "flex", gap: 5, alignItems: "flex-start" }}>
-                            <span style={{ fontSize: 9, color: "rgba(226,232,240,0.18)", flexShrink: 0, paddingTop: 2 }}>{formatLogTime(log.timestamp)}</span>
-                            <NodeBadge name={log.node ?? "system"} />
-                            <span style={{ fontSize: 11, color: sevColor[severity], lineHeight: 1.5, flex: 1 }}>{log.message}</span>
-                          </div>
-                          {(metaParts.length > 0 || detailText || log.hint) && (
-                            <div style={{ marginTop: 4, marginLeft: 60 }}>
-                              {metaParts.length > 0 && (
-                                <div style={{ fontSize: 10, color: "rgba(226,232,240,0.38)", lineHeight: 1.5 }}>
-                                  {metaParts.join(" | ")}
-                                </div>
-                              )}
-                              {detailText && (
-                                <div style={{ fontSize: 10, color: "rgba(226,232,240,0.3)", lineHeight: 1.5 }}>
-                                  {detailText}
-                                </div>
-                              )}
-                              {log.hint && (
-                                <div style={{ fontSize: 10, color: "#fbbf24", lineHeight: 1.5 }}>
-                                  hint: {log.hint}
-                                </div>
-                              )}
+                )}
+              </div>
+
+              {/* Logs */}
+              <div id="agent-logs" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
+                <div className="pane-head">
+                  <span className="label">Stream</span>
+                  {logs.length > 0 && (
+                    <span className="num" style={{ marginLeft: "auto", fontSize: "var(--t-micro)", color: "var(--ink-4)" }}>
+                      {logs.length}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  ref={logsContainerRef}
+                  onScroll={handleLogsScroll}
+                  style={{ flex: 1, overflowY: "auto", padding: "4px 0 12px", minHeight: 0 }}
+                >
+                  <BackendPanel />
+
+                  {logs.length === 0 && (
+                    <p className="meta" style={{ padding: "16px 12px", color: "var(--ink-4)", lineHeight: 1.7 }}>
+                      Nothing yet. Node transitions, iteration counts, durations and errors land
+                      here as the run streams.
+                    </p>
+                  )}
+
+                  {logs.map((log) => {
+                    const severity = toSeverity(log.severity);
+                    const detailText = formatLogDetails(log.details);
+                    const metaParts = [
+                      typeof log.iteration === "number" ? `iter ${log.iteration}` : null,
+                      typeof log.duration_ms === "number" ? `${log.duration_ms}ms` : null,
+                      log.error_type ? log.error_type : null,
+                    ].filter(Boolean) as string[];
+
+                    return (
+                      <motion.div
+                        key={log.id}
+                        className="logrow"
+                        data-sev={severity}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+                      >
+                        <span className="num" style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)" }}>
+                          {formatLogTime(log.timestamp)}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <span
+                            className="num"
+                            style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)", marginRight: 7 }}
+                          >
+                            {log.node ?? "system"}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "var(--t-small)",
+                              lineHeight: 1.55,
+                              color: SEVERITY_COLOR[severity],
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {log.message}
+                          </span>
+                          {metaParts.length > 0 && (
+                            <div className="num" style={{ fontSize: "var(--t-micro)", color: "var(--ink-4)", marginTop: 2 }}>
+                              {metaParts.join("  ")}
                             </div>
                           )}
-                        </motion.div>
-                      );
-                    })}
-                    {errorMessage && (
-                      <div style={{ margin: "8px 4px", padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.1)", color: "#f87171", fontSize: 11 }}>
-                        {errorMessage}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            )}
+                          {detailText && (
+                            <div
+                              className="num"
+                              style={{
+                                fontSize: "var(--t-micro)",
+                                color: "var(--ink-4)",
+                                marginTop: 2,
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {detailText}
+                            </div>
+                          )}
+                          {log.hint && (
+                            <div className="num" style={{ fontSize: "var(--t-micro)", color: "var(--warn)", marginTop: 2 }}>
+                              {log.hint}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
 
-            {/* Prompts tab */}
-            {rightTab === "prompts" && (
-              <motion.div
-                key="prompts"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
-              >
-                <PromptOverridePanel
-                  promptSchema={promptSchema?.nodes ?? null}
-                  immutableRules={immutableRules}
-                  maxMutableChars={maxMutablePromptChars}
-                  overrides={promptOverrides}
-                  onChange={handleOverrideChange}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  {errorMessage && (
+                    <div className="notice notice--bad" style={{ margin: "8px 10px" }}>
+                      <div className="notice__body">
+                        <div className="notice__title">Error</div>
+                        <p className="notice__text">{errorMessage}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {rightTab === "prompts" && (
+            <PromptOverridePanel
+              promptSchema={promptSchema?.nodes ?? null}
+              immutableRules={immutableRules}
+              maxMutableChars={maxMutablePromptChars}
+              overrides={promptOverrides}
+              onChange={handleOverrideChange}
+            />
+          )}
         </div>
       </div>
 
-      {/* API Key modal */}
       <AnimatePresence>
         {showWorkspaceRolloverModal && (
           <WorkspaceRolloverModal
@@ -1601,11 +1334,6 @@ export function LiveStudio() {
           />
         )}
       </AnimatePresence>
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-      `}</style>
     </div>
   );
 }

@@ -1,181 +1,252 @@
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   CHARITO — "Graphite on paper"
+
+   Two materials, used twice. The reading surfaces are warm uncoated paper
+   (#FBFAF7) with graphite ink (#1B1A18). The studio is the same two materials
+   swapped: graphite ground, paper ink. Nothing else changes between them, which
+   is why one set of component styles serves both.
+
+   Neither endpoint is pure. There is no #FFFFFF and no #000000 anywhere, and
+   every grey in both ramps carries a trace of warmth, so the neutrals read as
+   stock and pigment rather than as a default.
+
+   COLOUR HAS TWO JOBS, AND ONLY TWO.
+   1. --accent, a Prussian blue drawn from cyanotype blueprint stock, marks
+      what is active, live, selected or focused. Nothing else.
+   2. --ok / --warn / --bad, three earth pigments (terre verte, raw sienna,
+      red ochre) carry run state.
+
+   The primary action is NOT accent-coloured. It is solid ink — graphite on
+   paper, paper on graphite. That is the most emphatic thing this system can do
+   and it costs no hue at all, which keeps chromatic pixels far under 5%.
+
+   The three workflow nodes are deliberately NOT colour-coded. They are told
+   apart by position and name; colour says only what state they are in.
+   ───────────────────────────────────────────────────────────────────────── */
+
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* ── Light surface: paper ───────────────────────────────────────────── */
+  --bg:          #fbfaf7;
+  --surface:     #f4f2ee;
+  --surface-2:   #ebe8e2;
+  --hair:        #e3dfd8;
+  --rule:        #d3cec5;
+  --rule-strong: #b8b1a6;
+
+  --ink:         #1b1a18;
+  --ink-2:       #4b4844;
+  --ink-3:       #7a756d;
+  --ink-4:       #a39d94;
+
+  /* The inverse of --ink, for solid controls on this surface */
+  --on-ink:      #fbfaf7;
+
+  --accent:      #1f4c73;
+  --accent-soft: #eaeff4;
+  --accent-line: #b9cbdb;
+
+  --ok:          #3f6b52;
+  --ok-soft:     #eaf0eb;
+  --warn:        #8a6520;
+  --warn-soft:   #f5efe1;
+  --bad:         #8e3b2e;
+  --bad-soft:    #f6ebe8;
+
+  /* ── Type ───────────────────────────────────────────────────────────── */
+  --face: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --face-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ~1.25 ratio, hand-tuned, with one deliberate jump at the display end */
+  --t-micro:   11.5px;
+  --t-small:   13px;
+  --t-base:    14.5px;
+  --t-body:    16px;
+  --t-lead:    19px;
+  --t-h3:      19px;
+  --t-h2:      26px;
+  --t-h1:      34px;
+  --t-display: clamp(38px, 5.6vw, 68px);
+
+  /* Line-height moves inversely to size */
+  --lh-display: 1.03;
+  --lh-h1:      1.12;
+  --lh-h2:      1.2;
+  --lh-h3:      1.35;
+  --lh-lead:    1.5;
+  --lh-body:    1.6;
+  --lh-base:    1.5;
+  --lh-micro:   1.35;
+
+  /* Tracking set optically: negative on display, positive on small caps */
+  --tr-display: -0.028em;
+  --tr-h1:      -0.024em;
+  --tr-h2:      -0.018em;
+  --tr-h3:      -0.012em;
+  --tr-micro:    0.09em;
+
+  --measure: 68ch;
+
+  /* Radius is hierarchical, not uniform: things you press have a softened
+     edge, structure does not. Two values, and no third. */
+  --r-control: 3px;
+  --r-surface: 0px;
+
+  /* Motion. Entering decelerates, leaving accelerates.
+     WHAT DOES NOT ANIMATE: page sections on scroll, headings, body copy,
+     panels, the file tree, the editor, tab switching, navigation. Motion is
+     reserved for run state, arriving log lines, dialogs and pointer feedback. */
+  --dur-fast: 110ms;
+  --dur-mid:  190ms;
+  --dur-slow: 380ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:  cubic-bezier(0.55, 0, 1, 0.45);
+
+  /* One elevation, for surfaces genuinely above the page. Light from above,
+     colour sampled from the ink rather than neutral black. */
+  --lift: 0 1px 2px rgba(27, 26, 24, 0.08), 0 16px 40px -12px rgba(27, 26, 24, 0.24);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+/* ── Dark surface: the same two materials, swapped ───────────────────────── */
+.surface-dark {
+  --bg:          #1b1a18;
+  --surface:     #232120;
+  --surface-2:   #2b2927;
+  --hair:        #332f2c;
+  --rule:        #413c38;
+  --rule-strong: #575049;
+
+  --ink:         #fbfaf7;
+  --ink-2:       #c4bfb8;
+  --ink-3:       #8e8880;
+  --ink-4:       #6b655e;
+
+  --on-ink:      #1b1a18;
+
+  --accent:      #7fb3d9;
+  --accent-soft: #22303a;
+  --accent-line: #3d566b;
+
+  --ok:          #7fb596;
+  --ok-soft:     #212b24;
+  --warn:        #d6a84f;
+  --warn-soft:   #2e2819;
+  --bad:         #e08573;
+  --bad-soft:    #33211d;
+
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 40px -12px rgba(0, 0, 0, 0.6);
+
+  background: var(--bg);
+  color: var(--ink-2);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--ink);
+  --color-primary-foreground: var(--on-ink);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface);
+  --color-muted-foreground: var(--ink-3);
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-accent-foreground: var(--on-ink);
+  --color-destructive: var(--bad);
+  --color-destructive-foreground: var(--on-ink);
+  --color-border: var(--hair);
+  --color-input: var(--surface);
+  --color-ring: var(--accent);
+  --radius-sm: var(--r-control);
+  --radius-md: var(--r-control);
+  --radius-lg: var(--r-control);
+  --radius-xl: var(--r-control);
+  --font-sans: var(--face);
+  --font-mono: var(--face-mono);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--hair);
   }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
 
   html {
     font-size: var(--font-size);
+    -webkit-text-size-adjust: 100%;
   }
 
-  h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+  body {
+    background: var(--bg);
+    color: var(--ink-2);
+    font-family: var(--face);
+    font-size: var(--t-base);
+    line-height: var(--lh-base);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+  h1, h2, h3, h4 {
+    font-family: var(--face);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
   }
 
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+  h1 { font-size: var(--t-h1); line-height: var(--lh-h1); letter-spacing: var(--tr-h1); }
+  h2 { font-size: var(--t-h2); line-height: var(--lh-h2); letter-spacing: var(--tr-h2); }
+  h3 { font-size: var(--t-h3); line-height: var(--lh-h3); letter-spacing: var(--tr-h3); }
+  h4 { font-size: var(--t-base); line-height: var(--lh-h3); letter-spacing: -0.008em; }
+
+  p { margin: 0; }
+
+  code, pre, kbd, samp {
+    font-family: var(--face-mono);
+    font-variant-ligatures: none;
   }
 
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+  button, input, textarea, select {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
   }
 
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+  a { color: inherit; }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--ink);
   }
 
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
-  input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--rule);
+    border: 3px solid var(--bg);
+    border-radius: 6px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: var(--rule-strong); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

@@ -1,651 +1,235 @@
-import { motion } from "motion/react";
 import { NavLink } from "react-router";
-import {
-  Github,
-  Trophy,
-  Layers,
-  Code2,
-  Zap,
-  ArrowRight,
-  Terminal,
-  Shield,
-  Activity,
-  Box,
-  Mail,
-  Linkedin,
-} from "lucide-react";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: (i = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] },
-  }),
-};
+/* ─────────────────────────────────────────────────────────────────────────────
+   A record of what the thing is, what it runs on, and what was decided while
+   building it — including the visual system, which belongs here and nowhere
+   else in the app.
+   ───────────────────────────────────────────────────────────────────────── */
 
-const techStack = [
+const STACK: Array<{ area: string; items: Array<[string, string]> }> = [
   {
-    category: "Backend",
-    color: "#a78bfa",
+    area: "Backend",
     items: [
-      { name: "LangGraph", desc: "Workflow graph: planner -> architect -> coder (coder loops until DONE)." },
-      { name: "FastAPI", desc: "REST + SSE endpoints for runs, schema, and workspace APIs." },
-      { name: "Pydantic", desc: "Structured models for plan, task plan, and runtime request/response payloads." },
-      { name: "LangChain + Groq", desc: "Chat model integration via langchain-groq with provider-configured model selection." },
+      ["LangGraph", "The workflow graph and the coder's self-loop."],
+      ["FastAPI", "REST for state, SSE for the run."],
+      ["Pydantic", "Plan, task plan and request/response models."],
+      ["langchain-groq", "Chat model construction, per request, from your key."],
     ],
   },
   {
-    category: "Frontend",
-    color: "#06b6d4",
+    area: "Frontend",
     items: [
-      { name: "Vite + React Router", desc: "SPA routing and page composition for Home, Docs, Studio, and About." },
-      { name: "Zustand", desc: "Single source of truth for graph state, logs, workspace files, and prompt overrides." },
-      { name: "Live Studio Editor", desc: "Built-in editor and file tree backed by workspace read/write endpoints." },
-      { name: "Workflow Graph Panel", desc: "Planner/Architect/Coder status view driven by streaming SSE events." },
+      ["Vite + React Router", "Four routes: overview, reference, studio, about."],
+      ["Zustand", "One store for graph state, logs, files and prompt overrides."],
+      ["Motion", "Run state and dialogs. Nothing else moves."],
+      ["Lucide", "Icons at 1.75 stroke, only where a control needs one."],
     ],
   },
   {
-    category: "Infrastructure",
-    color: "#34d399",
+    area: "Runtime",
     items: [
-      { name: "SSE Streaming", desc: "Normalized runtime events for lifecycle, debug, and incremental updates." },
-      { name: "Session Workspaces", desc: "Per-session temp workspace with path validation and TTL cleanup." },
-      { name: "Pytest Suite", desc: "Backend tests for prompt schema, graph execution, streaming, and workspace APIs." },
-      { name: "ZIP Export", desc: "Download the current workspace as generated_project.zip." },
+      ["Server-Sent Events", "Normalised lifecycle, debug and incremental update events."],
+      ["Session workspaces", "Per-session temp directory, path-validated, TTL cleanup."],
+      ["Pytest", "Prompt schema, graph execution, streaming and workspace routes."],
+      ["ZIP export", "The whole session, as generated_project.zip."],
     ],
   },
 ];
 
-const developerProfile = {
-  displayName: "Pushkin Ranjan",
-  role: "AI/ML Engineer | Agentic Systems Builder",
-  bio: "I design autonomous engineering systems focused on reliability and execution quality. Charito is an experiment in building a production-grade AI coding platform.",
-  contacts: {
-    email: "pushkinranjan4000@gmail.com",
-    linkedin: "https://linkedin.com/in/pushkin-ranjan",
-    github: "https://github.com/Pushkin4000",
-  },
+const DESIGN_NOTES: Array<[string, string]> = [
+  [
+    "Two materials",
+    "The reading pages are warm uncoated paper with graphite ink. The studio is the same two materials swapped. Neither endpoint is pure — there is no #FFFFFF and no #000000 anywhere, and every grey carries a trace of warmth.",
+  ],
+  [
+    "Colour has two jobs",
+    "A Prussian blue drawn from cyanotype blueprint stock marks what is active, live, selected or focused. Three earth pigments — terre verte, raw sienna, red ochre — carry run state. Nothing else in the interface is coloured.",
+  ],
+  [
+    "The primary action has no hue",
+    "It is solid ink: graphite on paper, paper on graphite. That is the most emphatic thing this system can do, and it spends no colour to do it, which keeps chromatic pixels far under five percent.",
+  ],
+  [
+    "Nodes are not colour-coded",
+    "Planner, architect and coder are told apart by position and name. Colour says only what state they are in, so a screenshot still reads correctly in greyscale.",
+  ],
+  [
+    "Type",
+    "Instrument Sans carries the voice at two weights, 400 and 600. IBM Plex Mono carries every label, log line, file path and code block. Tracking is set per size; line-height moves inversely to it.",
+  ],
+  [
+    "Radius is hierarchical",
+    "Three pixels on things you press, zero on structure. Two values, and deliberately no third.",
+  ],
+  [
+    "Motion",
+    "Reserved for run state, arriving log lines, dialogs and pointer feedback. No section fades in on scroll anywhere in this app. That omission is the point.",
+  ],
+];
+
+const DEVELOPER = {
+  name: "Pushkin Ranjan",
+  role: "AI/ML engineer · agentic systems",
+  bio: "I build autonomous engineering systems and care mostly about whether they can be inspected when they misbehave. Charito is that idea taken as far as a single-developer project reasonably goes.",
+  email: "pushkinranjan4000@gmail.com",
+  linkedin: "https://linkedin.com/in/pushkin-ranjan",
+  github: "https://github.com/Pushkin4000",
 };
+
+const REPO_URL = "https://github.com/Pushkin4000/Intern-Mini/tree/Deploy-branch";
+
+function Rows({ items }: { items: Array<[string, string]> }) {
+  return (
+    <div style={{ borderTop: "1px solid var(--hair)" }}>
+      {items.map(([left, right]) => (
+        <div
+          key={left}
+          className="index-row"
+          style={{ gridTemplateColumns: "minmax(150px, max-content) minmax(0, 1fr)" }}
+        >
+          <span style={{ fontSize: "var(--t-small)", fontWeight: 600, color: "var(--ink)" }}>
+            {left}
+          </span>
+          <span className="meta" style={{ color: "var(--ink-2)", lineHeight: 1.7 }}>
+            {right}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function About() {
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "60px 24px" }}>
-      {/* Header */}
-      <motion.div
-        variants={fadeUp}
-        custom={0}
-        initial="hidden"
-        animate="visible"
-        style={{ marginBottom: 64 }}
-      >
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "3px 12px",
-            borderRadius: 100,
-            fontSize: 11,
-            fontFamily: "'JetBrains Mono', monospace",
-            color: "#fbbf24",
-            background: "rgba(251,191,36,0.1)",
-            border: "1px solid rgba(251,191,36,0.2)",
-            marginBottom: 20,
-          }}
-        >
-          <Trophy size={11} />
-          Implementation Scope
-        </div>
+    <div className="sheet" style={{ paddingTop: 56, maxWidth: 940 }}>
+      <p className="label" style={{ marginBottom: 18 }}>
+        About
+      </p>
+      <h1 className="display" style={{ fontSize: "clamp(34px, 4.6vw, 54px)", maxWidth: "15ch" }}>
+        What this is, and what it runs on
+      </h1>
+      <p className="lead" style={{ marginTop: 20, maxWidth: "58ch" }}>
+        Charito is a three-node LangGraph workflow with a studio wrapped around it. The interesting
+        part is not that it generates code — plenty of things do. It is that you can watch the run
+        while it happens and change the prompts that drive it.
+      </p>
 
-        <h1
-          style={{
-            fontSize: "clamp(32px, 5vw, 52px)",
-            fontWeight: 700,
-            color: "#f1f5f9",
-            letterSpacing: "-0.04em",
-            lineHeight: 1.1,
-            marginBottom: 20,
-          }}
-        >
-          About Charito
-        </h1>
-        <p
-          style={{
-            fontSize: 16,
-            color: "rgba(226,232,240,0.55)",
-            lineHeight: 1.8,
-            maxWidth: 600,
-          }}
-        >
-          Charito provides a transparent workflow workspace where
-          prompt layers, node lifecycle, and generated files stay visible during
-          execution. It is built around a three-node LangGraph pipeline and a
-          session-scoped workspace API.
+      {/* ── Why ─────────────────────────────────────────────────────────── */}
+      <section style={{ marginTop: 76 }}>
+        <hr className="rule-h" style={{ marginBottom: 26 }} />
+        <h2 style={{ marginBottom: 16 }}>Why it is built this way</h2>
+        <p className="prose">
+          Coding agents fail in the middle. The plan was wrong, or the file order was wrong, or the
+          provider rate-limited on the fourth call and everything after it is garbage. If all you
+          get is a spinner and a final diff, you find out at the end and cannot say which.
         </p>
-      </motion.div>
+        <p className="prose">
+          So the intermediate state is the interface. Node status comes from real lifecycle events,
+          not a timer. The log stream keeps every warning and error even when the rest is filtered.
+          The file tree refreshes during the run. The prompt editor shows the locked layers next to
+          the one you can rewrite, so it is obvious what you are actually changing.
+        </p>
+        <p className="prose">
+          The workspace is deliberately small and deliberately fenced: a temp directory per
+          session, path validation at the boundary, a TTL, and a reset that aborts a live run
+          cleanly. Nothing the agent writes escapes it.
+        </p>
+      </section>
 
-      {/* Project purpose */}
-      <motion.div
-        variants={fadeUp}
-        custom={1}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        style={{
-          padding: "32px",
-          borderRadius: 16,
-          border: "1px solid rgba(251,191,36,0.15)",
-          background: "linear-gradient(135deg, rgba(251,191,36,0.05), rgba(251,191,36,0.02))",
-          marginBottom: 56,
-          display: "flex",
-          gap: 24,
-          flexWrap: "wrap",
-          alignItems: "flex-start",
-        }}
-      >
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            background: "rgba(251,191,36,0.12)",
-            border: "1px solid rgba(251,191,36,0.2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fbbf24",
-            flexShrink: 0,
-          }}
-        >
-          <Trophy size={22} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <h3
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#f1f5f9",
-              marginBottom: 10,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Platform Purpose
-          </h3>
-          <p style={{ fontSize: 14, color: "rgba(226,232,240,0.55)", lineHeight: 1.8 }}>
-            Charito is built for operational clarity over
-            black-box behavior. Each workflow node has guarded prompt layers, stream
-            events are normalized into readable lifecycle signals, and generated
-            artifacts stay inside a validated workspace that can be inspected,
-            edited, and exported.
-          </p>
-        </div>
-      </motion.div>
-
-      {/* What makes it different */}
-      <motion.section
-        variants={fadeUp}
-        custom={0}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        style={{ marginBottom: 56 }}
-      >
-        <h2
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: "#f1f5f9",
-            letterSpacing: "-0.03em",
-            marginBottom: 24,
-          }}
-        >
-          The Core Idea
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: 12,
-          }}
-        >
-          {[
-            {
-              icon: <Shield size={18} />,
-              title: "Guarded Prompts",
-              desc: "Planner, Architect, and Coder prompts combine immutable global rules, immutable node prefix, and mutable runtime override text.",
-              color: "#a78bfa",
-            },
-            {
-              icon: <Activity size={18} />,
-              title: "Workflow Observability",
-              desc: "SSE emits run_started, node start/end, debug events, and run_complete so the UI can render live state transitions.",
-              color: "#06b6d4",
-            },
-            {
-              icon: <Terminal size={18} />,
-              title: "Session Workspace",
-              desc: "All file operations resolve against a workspace session with path traversal checks, UTF-8 safety, and CRUD endpoints.",
-              color: "#34d399",
-            },
-            {
-              icon: <Box size={18} />,
-              title: "Validated Backend Contracts",
-              desc: "Core behavior is covered by backend tests across prompt policy/schema, graph behavior, streaming, and workspace operations.",
-              color: "#fbbf24",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              style={{
-                padding: "20px",
-                borderRadius: 10,
-                border: `1px solid ${item.color}18`,
-                background: `${item.color}06`,
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: `${item.color}15`,
-                  border: `1px solid ${item.color}30`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: item.color,
-                  marginBottom: 12,
-                }}
-              >
-                {item.icon}
-              </div>
-              <h4
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "#e2e8f0",
-                  marginBottom: 6,
-                }}
-              >
-                {item.title}
-              </h4>
-              <p style={{ fontSize: 12, color: "rgba(226,232,240,0.45)", lineHeight: 1.7 }}>
-                {item.desc}
+      {/* ── Stack ───────────────────────────────────────────────────────── */}
+      <section style={{ marginTop: 76 }}>
+        <hr className="rule-h" style={{ marginBottom: 26 }} />
+        <h2 style={{ marginBottom: 26 }}>Stack</h2>
+        <div style={{ display: "grid", gap: 30 }}>
+          {STACK.map((group) => (
+            <div key={group.area}>
+              <p className="label" style={{ marginBottom: 8 }}>
+                {group.area}
               </p>
+              <Rows items={group.items} />
             </div>
           ))}
         </div>
-      </motion.section>
+      </section>
 
-      {/* Tech Stack */}
-      <motion.section
-        variants={fadeUp}
-        custom={0}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        style={{ marginBottom: 56 }}
-      >
-        <h2
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: "#f1f5f9",
-            letterSpacing: "-0.03em",
-            marginBottom: 24,
-          }}
-        >
-          Tech Stack
-        </h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {techStack.map((group) => (
-            <div key={group.category}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  color: group.color,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  marginBottom: 10,
-                  fontWeight: 600,
-                }}
-              >
-                {group.category}
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                  gap: 8,
-                }}
-              >
-                {group.items.map((item) => (
-                  <div
-                    key={item.name}
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      background: "rgba(255,255,255,0.02)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "#e2e8f0",
-                        marginBottom: 2,
-                      }}
-                    >
-                      {item.name}
-                    </div>
-                    <div style={{ fontSize: 11, color: "rgba(226,232,240,0.4)" }}>
-                      {item.desc}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* Project structure summary */}
-      <motion.section
-        variants={fadeUp}
-        custom={0}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        style={{ marginBottom: 56 }}
-      >
-        <h2
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: "#f1f5f9",
-            letterSpacing: "-0.03em",
-            marginBottom: 16,
-          }}
-        >
-          How It Works
-        </h2>
-        <p style={{ fontSize: 14, color: "rgba(226,232,240,0.55)", lineHeight: 1.8, marginBottom: 24 }}>
-          In Charito, a user submits a prompt. The LangGraph
-          workflow runs three nodes in sequence, then the coder iterates
-          file-by-file until completion:
+      {/* ── Design notes ────────────────────────────────────────────────── */}
+      <section style={{ marginTop: 76 }}>
+        <hr className="rule-h" style={{ marginBottom: 26 }} />
+        <h2 style={{ marginBottom: 12 }}>Design notes</h2>
+        <p className="prose" style={{ marginBottom: 26 }}>
+          Every value in the interface traces to something. That is the only test that reliably
+          separates a decision from a default.
         </p>
+        <Rows items={DESIGN_NOTES} />
+      </section>
 
-        <div style={{ position: "relative" }}>
-          {[
-            {
-              step: "01",
-              node: "Planner",
-              color: "#a78bfa",
-              desc: "Builds a structured execution plan with app summary, feature list, and initial file targets.",
-            },
-            {
-              step: "02",
-              node: "Architect",
-              color: "#06b6d4",
-              desc: "Converts the plan into ordered implementation steps, one task per file path.",
-            },
-            {
-              step: "03",
-              node: "Coder",
-              color: "#34d399",
-              desc: "Executes each implementation step using read_file/list_files/write_file tools until status is DONE.",
-            },
-          ].map((step, i) => (
-            <div
-              key={step.step}
-              style={{
-                display: "flex",
-                gap: 20,
-                alignItems: "flex-start",
-                marginBottom: i < 2 ? 0 : 0,
-                position: "relative",
-              }}
-            >
-              {/* Line */}
-              {i < 2 && (
-                <div
+      {/* ── Who ─────────────────────────────────────────────────────────── */}
+      <section style={{ marginTop: 76 }}>
+        <hr className="rule-h" style={{ marginBottom: 26 }} />
+        <h2 style={{ marginBottom: 22 }}>Who made it</h2>
+        <div
+          className="split split--5-7"
+          style={{ gap: "28px clamp(28px, 4vw, 48px)" }}
+        >
+          <div>
+            <div style={{ fontSize: "var(--t-lead)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
+              {DEVELOPER.name}
+            </div>
+            <p className="label" style={{ marginBottom: 16 }}>
+              {DEVELOPER.role}
+            </p>
+            <p className="prose" style={{ fontSize: "var(--t-base)" }}>
+              {DEVELOPER.bio}
+            </p>
+          </div>
+          <div>
+            <p className="label label--quiet" style={{ marginBottom: 10 }}>
+              Contact
+            </p>
+            <div style={{ borderTop: "1px solid var(--hair)" }}>
+              {[
+                ["Email", DEVELOPER.email, `mailto:${DEVELOPER.email}`],
+                ["LinkedIn", "pushkin-ranjan", DEVELOPER.linkedin],
+                ["GitHub", "Pushkin4000", DEVELOPER.github],
+              ].map(([label, value, href]) => (
+                <a
+                  key={label}
+                  href={href}
+                  target={href.startsWith("mailto:") ? undefined : "_blank"}
+                  rel="noopener noreferrer"
+                  className="index-row"
                   style={{
-                    position: "absolute",
-                    left: 19,
-                    top: 40,
-                    bottom: -20,
-                    width: 2,
-                    background: `linear-gradient(${step.color}, rgba(255,255,255,0.05))`,
-                  }}
-                />
-              )}
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: "50%",
-                  border: `2px solid ${step.color}`,
-                  background: `${step.color}15`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: step.color,
-                  zIndex: 1,
-                  position: "relative",
-                }}
-              >
-                {step.step}
-              </div>
-              <div style={{ paddingBottom: i < 2 ? 32 : 0 }}>
-                <div
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 700,
-                    color: step.color,
-                    marginBottom: 4,
-                    letterSpacing: "-0.01em",
+                    gridTemplateColumns: "84px minmax(0, 1fr)",
+                    textDecoration: "none",
+                    color: "inherit",
                   }}
                 >
-                  {step.node}
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(226,232,240,0.5)", lineHeight: 1.7 }}>
-                  {step.desc}
-                </p>
-              </div>
+                  <span className="label label--quiet">{label}</span>
+                  <span className="meta" style={{ color: "var(--ink)", wordBreak: "break-all" }}>
+                    {value}
+                  </span>
+                </a>
+              ))}
             </div>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* Developer profile */}
-      <motion.section
-        variants={fadeUp}
-        custom={0}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        style={{ marginBottom: 56 }}
-      >
-        <h2
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: "#f1f5f9",
-            letterSpacing: "-0.03em",
-            marginBottom: 16,
-          }}
-        >
-          About the Developer
-        </h2>
-        <div
-          style={{
-            padding: "22px 24px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(255,255,255,0.02)",
-          }}
-        >
-          <div style={{ fontSize: 17, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>
-            {developerProfile.displayName}
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: "#a78bfa",
-              marginBottom: 12,
-            }}
-          >
-            {developerProfile.role}
-          </div>
-          <p style={{ fontSize: 13, color: "rgba(226,232,240,0.55)", lineHeight: 1.8, marginBottom: 14 }}>
-            {developerProfile.bio}
-          </p>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <a
-              href={`mailto:${developerProfile.contacts.email}`}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 10px",
-                borderRadius: 6,
-                fontSize: 12,
-                color: "rgba(226,232,240,0.78)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.02)",
-                textDecoration: "none",
-              }}
-            >
-              <Mail size={13} />
-              {developerProfile.contacts.email}
-            </a>
-            <a
-              href={developerProfile.contacts.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 10px",
-                borderRadius: 6,
-                fontSize: 12,
-                color: "rgba(226,232,240,0.78)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.02)",
-                textDecoration: "none",
-              }}
-            >
-              <Linkedin size={13} />
-              LinkedIn
-            </a>
-            <a
-              href={developerProfile.contacts.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 10px",
-                borderRadius: 6,
-                fontSize: 12,
-                color: "rgba(226,232,240,0.78)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                background: "rgba(255,255,255,0.02)",
-                textDecoration: "none",
-              }}
-            >
-              <Github size={13} />
-              GitHub
-            </a>
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      {/* CTA */}
-      <motion.div
-        variants={fadeUp}
-        custom={0}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <NavLink
-          to="/studio"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "11px 22px",
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#fff",
-            background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-            textDecoration: "none",
-            boxShadow: "0 0 24px rgba(124,58,237,0.3)",
-          }}
-        >
-          <Zap size={15} />
-          Open Live Studio
-          <ArrowRight size={14} />
-        </NavLink>
-        <a
-          href="https://github.com/Pushkin4000/Charito/tree/Deploy-branch"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "11px 22px",
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 600,
-            color: "rgba(226,232,240,0.7)",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            textDecoration: "none",
-          }}
-        >
-          <Github size={15} />
-          View on GitHub
-        </a>
-        <NavLink
-          to="/docs"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "11px 22px",
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 600,
-            color: "rgba(226,232,240,0.7)",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            textDecoration: "none",
-          }}
-        >
-          <Code2 size={15} />
-          Read Docs
-        </NavLink>
-      </motion.div>
+      {/* ── Actions ─────────────────────────────────────────────────────── */}
+      <section style={{ marginTop: 64 }}>
+        <hr className="rule-h" style={{ marginBottom: 28 }} />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <NavLink to="/studio" className="btn btn--primary btn--lg">
+            Open the studio
+          </NavLink>
+          <NavLink to="/docs" className="btn btn--lg">
+            Read the reference
+          </NavLink>
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="btn btn--lg">
+            Source on GitHub
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,0 +1,593 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Component layer.
+
+   These rules sit inside @layer components ON PURPOSE. Tailwind emits its
+   utilities into @layer utilities, and an unlayered rule beats any layered one
+   regardless of specificity — so an unlayered `.btn { display: inline-flex }`
+   would silently defeat `hidden` and `md:hidden`. Declaring the layer restores
+   the intended order: base < components < utilities.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Keyframes are global by nature and stay outside the layer. */
+@keyframes charito-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+@keyframes charito-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@layer components {
+
+  /* ── Shell ─────────────────────────────────────────────────────────────
+     Documents scroll. The studio does not: it is a fixed-height instrument
+     whose panels scroll independently — but only once there is room for three
+     columns. Below that it becomes a scrolling document like everything else. */
+
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--bg);
+  }
+
+  @media (min-width: 768px) {
+    .app-shell--fixed {
+      height: 100vh;
+      min-height: 0;
+      overflow: hidden;
+    }
+  }
+
+  /* ── Structure ─────────────────────────────────────────────────────────── */
+
+  .sheet {
+    width: 100%;
+    max-width: 1120px;
+    margin-inline: auto;
+    padding-inline: clamp(20px, 5vw, 48px);
+  }
+
+  .measure { max-width: var(--measure); }
+
+  .rule-h {
+    border: 0;
+    border-top: 1px solid var(--hair);
+    margin: 0;
+  }
+
+  /* Asymmetric two-column split. Stacked on narrow screens; above the
+     breakpoint the wider half always carries the specimen, never the prose. */
+  .split {
+    display: grid;
+    gap: clamp(28px, 4vw, 48px);
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  @media (min-width: 900px) {
+    .split--5-7 { grid-template-columns: 5fr 7fr; }
+  }
+
+  .docs-grid {
+    display: grid;
+    gap: clamp(32px, 5vw, 56px);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 1024px) {
+    .docs-grid { grid-template-columns: 196px minmax(0, 1fr); }
+  }
+
+  /* ── Voice ─────────────────────────────────────────────────────────────── */
+
+  .display {
+    font-family: var(--face);
+    font-weight: 600;
+    font-size: var(--t-display);
+    line-height: var(--lh-display);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .lead {
+    font-size: var(--t-lead);
+    line-height: var(--lh-lead);
+    color: var(--ink-2);
+    letter-spacing: -0.008em;
+  }
+
+  .prose {
+    font-size: var(--t-body);
+    line-height: var(--lh-body);
+    color: var(--ink-2);
+    max-width: var(--measure);
+  }
+
+  .prose + .prose { margin-top: 0.85em; }
+  .prose strong { color: var(--ink); font-weight: 600; }
+
+  .prose code,
+  .tick {
+    font-family: var(--face-mono);
+    font-size: 0.87em;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    padding: 0.08em 0.36em;
+    white-space: nowrap;
+  }
+
+  /* ── Apparatus ─────────────────────────────────────────────────────────── */
+
+  .label {
+    font-family: var(--face-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    line-height: var(--lh-micro);
+    letter-spacing: var(--tr-micro);
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .label--accent { color: var(--accent); }
+  .label--quiet { color: var(--ink-4); }
+
+  .meta {
+    font-family: var(--face-mono);
+    font-size: var(--t-small);
+    line-height: 1.55;
+    color: var(--ink-3);
+  }
+
+  .num {
+    font-family: var(--face-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .spec {
+    display: grid;
+    grid-template-columns: minmax(88px, max-content) 1fr;
+    border-top: 1px solid var(--hair);
+    margin: 0;
+  }
+  .spec > dt,
+  .spec > dd {
+    font-size: var(--t-small);
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hair);
+    margin: 0;
+  }
+  .spec > dt {
+    font-family: var(--face-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    letter-spacing: var(--tr-micro);
+    text-transform: uppercase;
+    color: var(--ink-4);
+    padding-right: 20px;
+  }
+  .spec > dd { color: var(--ink-2); }
+
+  /* ── Controls ──────────────────────────────────────────────────────────── */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-family: var(--face);
+    font-size: var(--t-small);
+    font-weight: 500;
+    line-height: 1.2;
+    padding: 8px 14px;
+    border: 1px solid var(--rule);
+    border-radius: var(--r-control);
+    background: transparent;
+    color: var(--ink-2);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--dur-fast) linear,
+                border-color var(--dur-fast) linear,
+                color var(--dur-fast) linear;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--rule-strong);
+    color: var(--ink);
+  }
+
+  .btn:active:not(:disabled) { background: var(--surface-2); }
+
+  .btn:disabled {
+    color: var(--ink-4);
+    border-color: var(--hair);
+    cursor: not-allowed;
+  }
+
+  /* The most emphatic thing this system does, and it uses no hue at all. */
+  .btn--primary {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--on-ink);
+    font-weight: 600;
+  }
+  .btn--primary:hover:not(:disabled) {
+    background: var(--ink-2);
+    border-color: var(--ink-2);
+    color: var(--on-ink);
+  }
+  /* Disabled-because-running still has to be readable, so it drops the fill
+     rather than dimming the label into the background. */
+  .btn--primary:disabled {
+    background: transparent;
+    border-color: var(--rule);
+    color: var(--ink-3);
+  }
+
+  .btn--ok   { color: var(--ok); border-color: var(--ok); }
+  .btn--ok:hover:not(:disabled)   { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+  .btn--warn { color: var(--warn); border-color: var(--warn); }
+  .btn--warn:hover:not(:disabled) { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+  .btn--bad  { color: var(--bad); border-color: var(--bad); }
+  .btn--bad:hover:not(:disabled)  { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+
+  .btn--sm { padding: 5px 10px; font-size: var(--t-micro); gap: 5px; }
+  .btn--lg { padding: 11px 20px; font-size: var(--t-base); }
+  .btn--bare {
+    border-color: transparent;
+    padding: 6px 8px;
+    color: var(--ink-3);
+  }
+  .btn--bare:hover:not(:disabled) { border-color: transparent; background: var(--surface); }
+
+  .field {
+    width: 100%;
+    font-family: var(--face-mono);
+    font-size: var(--t-small);
+    line-height: 1.55;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-control);
+    padding: 8px 11px;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color var(--dur-fast) linear, box-shadow var(--dur-fast) linear;
+  }
+  .field::placeholder { color: var(--ink-4); }
+  .field:hover { border-color: var(--rule-strong); }
+  .field:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .link {
+    color: var(--ink);
+    text-decoration: none;
+    box-shadow: inset 0 -1px 0 var(--rule);
+    transition: color var(--dur-fast) linear, box-shadow var(--dur-fast) linear;
+  }
+  .link:hover { color: var(--accent); box-shadow: inset 0 -1px 0 var(--accent); }
+
+  /* ── Panels ────────────────────────────────────────────────────────────── */
+
+  .pane-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--hair);
+    min-height: 36px;
+  }
+
+  /* ── Notices ─────────────────────────────────────────────────────────────
+     A left rule, a mono label and a tinted ground. Colour confirms the signal;
+     the word carries it, so the meaning survives without the colour. */
+
+  .notice {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--hair);
+    border-left-width: 2px;
+    border-radius: var(--r-control);
+    background: var(--surface);
+  }
+  .notice__body { flex: 1; min-width: 0; }
+  .notice__title {
+    font-family: var(--face-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    letter-spacing: var(--tr-micro);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  .notice__text {
+    font-size: var(--t-small);
+    line-height: 1.65;
+    color: var(--ink-2);
+  }
+
+  .notice--ok    { border-left-color: var(--ok);   background: var(--ok-soft); }
+  .notice--ok    .notice__title { color: var(--ok); }
+  .notice--warn  { border-left-color: var(--warn); background: var(--warn-soft); }
+  .notice--warn  .notice__title { color: var(--warn); }
+  .notice--bad   { border-left-color: var(--bad);  background: var(--bad-soft); }
+  .notice--bad   .notice__title { color: var(--bad); }
+
+  /* ── Navigation ────────────────────────────────────────────────────────── */
+
+  .nav-link {
+    font-size: var(--t-small);
+    font-weight: 500;
+    color: var(--ink-3);
+    text-decoration: none;
+    padding: 3px 0;
+    border-bottom: 1.5px solid transparent;
+    transition: color var(--dur-fast) linear, border-color var(--dur-fast) linear;
+  }
+  .nav-link:hover { color: var(--ink); }
+  .nav-link.is-active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+
+  /* Contents rail on the reference page. */
+  .toc-link {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 7px 0 7px 11px;
+    background: none;
+    border: 0;
+    border-left: 1.5px solid var(--hair);
+    font-family: var(--face);
+    font-size: var(--t-small);
+    color: var(--ink-3);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color var(--dur-fast) linear, border-color var(--dur-fast) linear;
+  }
+  .toc-link:hover { color: var(--ink); }
+  .toc-link[data-active="true"] {
+    color: var(--ink);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ── Code specimen ─────────────────────────────────────────────────────── */
+
+  .specimen {
+    border: 1px solid var(--hair);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .specimen__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 8px 5px 12px;
+    border-bottom: 1px solid var(--hair);
+    min-height: 34px;
+  }
+  .specimen pre {
+    margin: 0;
+    padding: 14px 16px;
+    font-size: var(--t-small);
+    line-height: 1.75;
+    color: var(--ink-2);
+    overflow-x: auto;
+    tab-size: 2;
+  }
+  /* Two tones, not seven. In a short excerpt, keywords and strings are the
+     only things worth separating from the body. */
+  .tok-kw  { color: var(--accent); }
+  .tok-str { color: var(--ink); }
+  .tok-com { color: var(--ink-4); }
+
+  /* ── Index rows ────────────────────────────────────────────────────────── */
+
+  .index-row {
+    display: grid;
+    gap: 14px;
+    align-items: baseline;
+    padding: 11px 6px;
+    border-bottom: 1px solid var(--hair);
+    transition: background-color var(--dur-fast) linear;
+  }
+  .index-row:hover { background: var(--surface); }
+
+  .verb {
+    font-family: var(--face-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-align: right;
+    color: var(--ink-3);
+  }
+
+  /* ── Run state ─────────────────────────────────────────────────────────── */
+
+  .breathe { animation: charito-breathe 1.2s var(--ease-out) infinite; }
+  .rotate  { animation: charito-rotate 0.9s linear infinite; }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink-4);
+    flex-shrink: 0;
+  }
+
+  /* ── Studio ────────────────────────────────────────────────────────────── */
+
+  .studio-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .studio-tree {
+    display: none;
+    width: 216px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--hair);
+    overflow-y: auto;
+  }
+
+  .studio-editor {
+    flex: 1;
+    min-width: 0;
+    min-height: 340px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .studio-aside {
+    display: flex;
+    flex-direction: column;
+    min-height: 380px;
+    border-top: 1px solid var(--hair);
+  }
+
+  @media (min-width: 768px) {
+    .studio-body { flex-direction: row; overflow: hidden; }
+    .studio-tree { display: block; }
+    .studio-editor { min-height: 0; border-right: 1px solid var(--hair); }
+    .studio-aside {
+      width: 312px;
+      flex-shrink: 0;
+      min-height: 0;
+      border-top: 0;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .studio-aside { width: 356px; }
+  }
+
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 10px;
+    background: none;
+    border: 0;
+    border-left: 1.5px solid transparent;
+    cursor: pointer;
+    font-family: var(--face-mono);
+    font-size: var(--t-small);
+    color: var(--ink-3);
+    text-align: left;
+    transition: color var(--dur-fast) linear, background-color var(--dur-fast) linear;
+  }
+  .tree-row:hover { color: var(--ink); background: var(--surface); }
+  .tree-row[data-active="true"] {
+    color: var(--ink);
+    background: var(--accent-soft);
+    border-left-color: var(--accent);
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 1;
+    padding: 10px 8px;
+    background: none;
+    border: 0;
+    border-bottom: 1.5px solid transparent;
+    cursor: pointer;
+    font-family: var(--face-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    letter-spacing: var(--tr-micro);
+    text-transform: uppercase;
+    color: var(--ink-4);
+    transition: color var(--dur-fast) linear, border-color var(--dur-fast) linear;
+  }
+  .tab:hover { color: var(--ink-3); }
+  .tab[data-active="true"] {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+
+  .node-row {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    gap: 10px;
+    align-items: baseline;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--hair);
+    border-left: 1.5px solid transparent;
+  }
+  .node-row[data-state="running"] { border-left-color: var(--accent); background: var(--accent-soft); }
+  .node-row[data-state="done"]    { border-left-color: var(--ok); }
+  .node-row[data-state="error"]   { border-left-color: var(--bad); background: var(--bad-soft); }
+
+  .logrow {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 4px 9px;
+    padding: 6px 10px;
+    border-left: 1.5px solid transparent;
+    align-items: baseline;
+  }
+  .logrow:hover { background: var(--surface); }
+  .logrow[data-sev="error"]   { border-left-color: var(--bad); background: var(--bad-soft); }
+  .logrow[data-sev="warn"]    { border-left-color: var(--warn); }
+  .logrow[data-sev="success"] { border-left-color: var(--ok); }
+
+  /* ── Dialogs ───────────────────────────────────────────────────────────── */
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(27, 26, 24, 0.42);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .dialog {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-control);
+    box-shadow: var(--lift);
+    width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .dialog__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .dialog__body { padding: 20px; }
+  .dialog__foot {
+    display: flex;
+    gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--hair);
+    background: var(--surface);
+  }
+}

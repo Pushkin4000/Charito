@@ -1,234 +1,214 @@
 import { useState, useEffect } from "react";
 import { Outlet, NavLink, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, X, Zap, Github } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { BackendBar, useBackendProbe } from "@/app/components/BackendNotice";
+import { useBackendStatus } from "@/app/lib/backend-status";
+
+const NAV = [
+  { to: "/", label: "Overview" },
+  { to: "/docs", label: "Reference" },
+  { to: "/studio", label: "Studio" },
+  { to: "/about", label: "About" },
+];
+
+const REPO_URL = "https://github.com/Pushkin4000/Intern-Mini/tree/Deploy-branch";
+
+/** Reachability tell in the header, so the state is legible without a banner. */
+function StatusTell() {
+  const status = useBackendStatus((state) => state.status);
+
+  const tone: Record<string, { color: string; text: string }> = {
+    online: { color: "var(--ok)", text: "API online" },
+    checking: { color: "var(--ink-4)", text: "Checking" },
+    waking: { color: "var(--warn)", text: "Waking" },
+    offline: { color: "var(--bad)", text: "API offline" },
+    unconfigured: { color: "var(--bad)", text: "No API URL" },
+  };
+  const current = tone[status] ?? tone.checking;
+  const pending = status === "waking" || status === "checking";
+
+  return (
+    <span
+      title={`Backend status: ${status}`}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
+    >
+      <span className={pending ? "dot breathe" : "dot"} style={{ background: current.color }} />
+      <span style={{ fontSize: "var(--t-small)", color: "var(--ink-3)" }}>{current.text}</span>
+    </span>
+  );
+}
 
 export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  useBackendProbe();
 
   useEffect(() => {
     setMobileOpen(false);
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  const navItems = [
-    { to: "/", label: "Home" },
-    { to: "/docs", label: "Docs" },
-    { to: "/studio", label: "Live Studio" },
-    { to: "/about", label: "About" },
-  ];
+  const isStudio = location.pathname === "/studio";
 
   return (
     <div
-      className="min-h-screen flex flex-col"
-      style={{
-        background: "#080810",
-        color: "#e2e8f0",
-        fontFamily: "'Inter', sans-serif",
-      }}
+      className={[
+        "app-shell",
+        // The studio is a fixed-height instrument on wide screens and a
+        // scrolling document on narrow ones; the class carries that rule.
+        isStudio ? "app-shell--fixed surface-dark" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      {/* Navbar */}
-      <header
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 50,
-          transition: "all 0.3s ease",
-          background: scrolled
-            ? "rgba(8,8,16,0.92)"
-            : "transparent",
-          backdropFilter: scrolled ? "blur(12px)" : "none",
-          borderBottom: scrolled ? "1px solid rgba(139,92,246,0.15)" : "1px solid transparent",
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <NavLink to="/" className="flex items-center group">
+      {/* ── Header. Static, not fixed and not blurred: it is the top of the
+          document and it scrolls away like one. ─────────────────────────── */}
+      <header style={{ borderBottom: "1px solid var(--hair)", flexShrink: 0 }}>
+        <div className="sheet" style={{ height: 56, display: "flex", alignItems: "center", gap: 24 }}>
+          <NavLink
+            to="/"
+            style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", flexShrink: 0 }}
+          >
+            <Mark />
             <span
               style={{
-                fontFamily: "'Sora', 'Inter', sans-serif",
                 fontSize: 15,
                 fontWeight: 600,
-                color: "#e2e8f0",
-                letterSpacing: "-0.015em",
+                letterSpacing: "-0.018em",
+                color: "var(--ink)",
               }}
             >
               Charito
             </span>
           </NavLink>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => (
+          <nav className="hidden md:flex" style={{ alignItems: "center", gap: 20 }}>
+            {NAV.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === "/"}
-                style={({ isActive }) => ({
-                  padding: "6px 14px",
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: isActive ? "#a78bfa" : "rgba(226,232,240,0.65)",
-                  background: isActive ? "rgba(139,92,246,0.1)" : "transparent",
-                  transition: "all 0.2s ease",
-                  textDecoration: "none",
-                })}
+                className={({ isActive }) => (isActive ? "nav-link is-active" : "nav-link")}
               >
                 {item.label}
               </NavLink>
             ))}
           </nav>
 
-          {/* Right side */}
-          <div className="hidden md:flex items-center gap-3">
-            <a
-              href="https://github.com/Pushkin4000/Intern-Mini/tree/Deploy-branch"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 14px",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 500,
-                color: "rgba(226,232,240,0.65)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                textDecoration: "none",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <Github size={14} />
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 16 }}>
+            <span className="hidden sm:inline-flex">
+              <StatusTell />
+            </span>
+            <a className="nav-link hidden md:inline" href={REPO_URL} target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
-            <NavLink
-              to="/studio"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "7px 16px",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#fff",
-                background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                textDecoration: "none",
-                transition: "all 0.2s ease",
-                boxShadow: "0 0 20px rgba(124,58,237,0.3)",
-              }}
-            >
-              <Zap size={13} />
-              Try Studio
-            </NavLink>
+            {!isStudio && (
+              <span className="hidden md:inline-flex">
+                <NavLink to="/studio" className="btn btn--primary btn--sm">
+                  Open studio
+                </NavLink>
+              </span>
+            )}
+            <span className="md:hidden">
+              <button
+                type="button"
+                className="btn btn--sm btn--bare"
+                onClick={() => setMobileOpen((value) => !value)}
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileOpen}
+              >
+                {mobileOpen ? <X size={18} strokeWidth={1.75} /> : <Menu size={18} strokeWidth={1.75} />}
+              </button>
+            </span>
           </div>
-
-          {/* Mobile menu button */}
-          <button
-            className="md:hidden"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#e2e8f0",
-              cursor: "pointer",
-              padding: 4,
-            }}
-          >
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
         </div>
 
-        {/* Mobile menu */}
         <AnimatePresence>
           {mobileOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              style={{
-                background: "rgba(8,8,16,0.97)",
-                borderBottom: "1px solid rgba(139,92,246,0.15)",
-                padding: "8px 16px 16px",
-              }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.19, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden"
+              style={{ overflow: "hidden", borderTop: "1px solid var(--hair)" }}
             >
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/"}
-                  style={({ isActive }) => ({
-                    display: "block",
-                    padding: "10px 16px",
-                    borderRadius: 6,
-                    fontSize: 15,
-                    fontWeight: 500,
-                    color: isActive ? "#a78bfa" : "rgba(226,232,240,0.75)",
-                    textDecoration: "none",
-                    marginBottom: 2,
-                  })}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
+              <div className="sheet" style={{ paddingBlock: 6 }}>
+                {NAV.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) => (isActive ? "nav-link is-active" : "nav-link")}
+                    style={{
+                      display: "block",
+                      padding: "12px 0",
+                      fontSize: "var(--t-base)",
+                      borderBottom: "1px solid var(--hair)",
+                    }}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBlock: 14 }}>
+                  <StatusTell />
+                  <a className="nav-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+                    GitHub
+                  </a>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </header>
 
-      {/* Main content */}
-      <main className="flex-1 pt-16">
+      <BackendBar />
+
+      <main style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <Outlet />
       </main>
 
-      {/* Footer */}
-      <footer
-        style={{
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          padding: "32px 24px",
-        }}
-      >
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span
-              style={{
-                fontFamily: "'Sora', 'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "rgba(226,232,240,0.78)",
-                letterSpacing: "-0.015em",
-              }}
-            >
-              Charito
+      {!isStudio && (
+        <footer style={{ borderTop: "1px solid var(--hair)", marginTop: 104 }}>
+          <div
+            className="sheet"
+            style={{
+              paddingBlock: 26,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px 32px",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: "var(--t-small)", color: "var(--ink-3)" }}>
+              Charito — prompt in, inspectable project out.
             </span>
-            <span
-              style={{
-                fontSize: 12,
-                color: "rgba(226,232,240,0.4)",
-              }}
-            >
-              | Agentic Coding Platform
+            <span className="meta" style={{ color: "var(--ink-4)" }}>
+              LangGraph · FastAPI · Groq · React
+            </span>
+            <span style={{ marginLeft: "auto", display: "flex", gap: 20, alignItems: "center" }}>
+              <NavLink className="nav-link" to="/docs">
+                Reference
+              </NavLink>
+              <a className="nav-link" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+                Source
+              </a>
             </span>
           </div>
-          <div style={{ fontSize: 12, color: "rgba(226,232,240,0.3)" }}>
-            Built with LangGraph, FastAPI, and Vite React
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
 
+/** Three rules, shortest last: plan, steps, files. The favicon uses the same mark. */
+function Mark() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 16 16" aria-hidden="true" style={{ display: "block", flexShrink: 0 }}>
+      <rect x="1" y="3" width="14" height="1.6" fill="currentColor" opacity="0.85" />
+      <rect x="1" y="7.2" width="9.5" height="1.6" fill="currentColor" opacity="0.55" />
+      <rect x="1" y="11.4" width="5" height="1.6" fill="currentColor" opacity="0.3" />
+    </svg>
+  );
+}

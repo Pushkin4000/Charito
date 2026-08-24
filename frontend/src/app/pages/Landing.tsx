@@ -1,699 +1,240 @@
+import { Fragment } from "react";
 import { NavLink } from "react-router";
-import { motion } from "motion/react";
-import {
-  Zap,
-  GitBranch,
-  Code2,
-  Terminal,
-  Shield,
-  Download,
-  ArrowRight,
-  ChevronRight,
-  Layers,
-  Network,
-  FileCode2,
-  Activity,
-} from "lucide-react";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (i = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] },
-  }),
-};
+/* ─────────────────────────────────────────────────────────────────────────────
+   Five sections, each carrying one idea, separated by hairlines and space
+   rather than boxes. Nothing on this page animates: there is no scroll-
+   triggered motion anywhere, because the content is meant to be read on
+   arrival rather than held back for an effect.
+   ───────────────────────────────────────────────────────────────────────── */
 
-function Pill({ children }: { children: React.ReactNode }) {
+const NODES: Array<[string, string, string]> = [
+  [
+    "planner",
+    "Plan",
+    "Reads the prompt and writes a plan: a one-line summary of the app, the feature list, and the files it expects to need.",
+  ],
+  [
+    "architect",
+    "TaskPlan",
+    "Breaks the plan into ordered implementation steps — one task per file path, sequenced so each file can be written given the ones before it.",
+  ],
+  [
+    "coder",
+    "Files",
+    "Executes one step with read_file, list_files and write_file, then re-enters itself. It is the only node with an edge back to itself.",
+  ],
+];
+
+const SPEC: Array<[string, string]> = [
+  ["Runtime", "LangGraph StateGraph, three nodes"],
+  ["Provider", "Groq via langchain-groq — you supply the key"],
+  ["Transport", "REST for state, SSE for the run"],
+  ["Workspace", "Session-scoped temp filesystem, path-validated"],
+  ["Prompts", "Locked rules + node prefix + 4000 editable chars"],
+  ["Licence", "MIT"],
+];
+
+const SURFACE: Array<[string, string]> = [
+  [
+    "Node state comes from real events",
+    'Status is driven by SSE lifecycle events rather than a timer, and the coder reports its file cursor — so a long run reads as "file 4 of 9", not as a spinner.',
+  ],
+  [
+    "Prompt layers are visible, not hidden",
+    "Each node's system prompt is composed from locked global rules, a locked node prefix, and a layer you can rewrite. The locked text stays on screen, so it is obvious what you are actually changing.",
+  ],
+  [
+    "The log stream keeps what matters",
+    "Node start and end, iteration counts, durations, error types and hints. Warnings and errors are never filtered out of the view.",
+  ],
+  [
+    "Files are editable while they are written",
+    "The workspace tree refreshes during a run. Open a file, edit it in place, save it back over the API, and take the project away as a ZIP.",
+  ],
+];
+
+function Specimen() {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 12px",
-        borderRadius: 100,
-        fontSize: 12,
-        fontWeight: 500,
-        color: "#a78bfa",
-        background: "rgba(139,92,246,0.1)",
-        border: "1px solid rgba(139,92,246,0.25)",
-        fontFamily: "'JetBrains Mono', monospace",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function NodeCard({
-  label,
-  icon,
-  desc,
-  color,
-  delay,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  desc: string;
-  color: string;
-  delay: number;
-}) {
-  return (
-    <motion.div
-      variants={fadeUp}
-      custom={delay}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true }}
-      whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      style={{
-        padding: "28px 24px",
-        borderRadius: 12,
-        border: "1px solid rgba(255,255,255,0.07)",
-        background: "rgba(255,255,255,0.025)",
-        backdropFilter: "blur(8px)",
-        flex: 1,
-        minWidth: 200,
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          background: `${color}22`,
-          border: `1px solid ${color}44`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 16,
-          color,
-        }}
-      >
-        {icon}
+    <div className="specimen">
+      <div className="specimen__head">
+        <span className="label label--quiet">agent/graph.py</span>
+        <span className="label label--quiet">excerpt</span>
       </div>
-      <div
-        style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 13,
-          color,
-          marginBottom: 6,
-          fontWeight: 600,
-        }}
-      >
-        {label}
-      </div>
-      <p style={{ fontSize: 13, color: "rgba(226,232,240,0.5)", lineHeight: 1.6 }}>
-        {desc}
-      </p>
-    </motion.div>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  desc,
-  delay,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  delay: number;
-}) {
-  return (
-    <motion.div
-      variants={fadeUp}
-      custom={delay}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true }}
-      style={{
-        padding: "28px 24px",
-        borderRadius: 12,
-        border: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(255,255,255,0.02)",
-        transition: "border-color 0.2s ease",
-      }}
-    >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          background: "rgba(124,58,237,0.12)",
-          border: "1px solid rgba(124,58,237,0.2)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 16,
-          color: "#a78bfa",
-        }}
-      >
-        {icon}
-      </div>
-      <h3
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#e2e8f0",
-          marginBottom: 8,
-        }}
-      >
-        {title}
-      </h3>
-      <p style={{ fontSize: 13, color: "rgba(226,232,240,0.5)", lineHeight: 1.7 }}>
-        {desc}
-      </p>
-    </motion.div>
-  );
-}
-
-function CodeSnippet() {
-  return (
-    <div
-      style={{
-        borderRadius: 12,
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: "#0e0e1a",
-        overflow: "hidden",
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 12,
-      }}
-    >
-      {/* titlebar */}
-      <div
-        style={{
-          padding: "10px 16px",
-          background: "rgba(255,255,255,0.03)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-          }}
-        >
-          {["#ff5f57", "#ffbd2e", "#28c840"].map((c) => (
-            <div
-              key={c}
-              style={{ width: 10, height: 10, borderRadius: "50%", background: c }}
-            />
-          ))}
-        </div>
-        <span style={{ color: "rgba(226,232,240,0.3)", fontSize: 11, marginLeft: 4 }}>
-          graph.py
-        </span>
-      </div>
-      <div style={{ padding: "20px 24px", lineHeight: 1.8 }}>
-        <div>
-          <span style={{ color: "#7c3aed" }}>from</span>
-          <span style={{ color: "#e2e8f0" }}> langgraph.graph </span>
-          <span style={{ color: "#7c3aed" }}>import</span>
-          <span style={{ color: "#06b6d4" }}> StateGraph</span>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <span style={{ color: "#e2e8f0" }}>graph </span>
-          <span style={{ color: "#a78bfa" }}>= </span>
-          <span style={{ color: "#06b6d4" }}>StateGraph</span>
-          <span style={{ color: "#e2e8f0" }}>(AgentState)</span>
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <span style={{ color: "#e2e8f0" }}>graph.</span>
-          <span style={{ color: "#34d399" }}>add_node</span>
-          <span style={{ color: "#e2e8f0" }}>(</span>
-          <span style={{ color: "#fbbf24" }}>"planner"</span>
-          <span style={{ color: "#e2e8f0" }}>, planner_node)</span>
-        </div>
-        <div>
-          <span style={{ color: "#e2e8f0" }}>graph.</span>
-          <span style={{ color: "#34d399" }}>add_node</span>
-          <span style={{ color: "#e2e8f0" }}>(</span>
-          <span style={{ color: "#fbbf24" }}>"architect"</span>
-          <span style={{ color: "#e2e8f0" }}>, architect_node)</span>
-        </div>
-        <div>
-          <span style={{ color: "#e2e8f0" }}>graph.</span>
-          <span style={{ color: "#34d399" }}>add_node</span>
-          <span style={{ color: "#e2e8f0" }}>(</span>
-          <span style={{ color: "#fbbf24" }}>"coder"</span>
-          <span style={{ color: "#e2e8f0" }}>, coder_node)</span>
-        </div>
-        <div style={{ marginTop: 8, color: "rgba(226,232,240,0.3)" }}>
-          # Edges: planner -&gt; architect -&gt; coder, then coder loops until DONE
-        </div>
-        <div>
-          <span style={{ color: "#e2e8f0" }}>graph.</span>
-          <span style={{ color: "#34d399" }}>add_edge</span>
-          <span style={{ color: "#e2e8f0" }}>(</span>
-          <span style={{ color: "#fbbf24" }}>"planner"</span>
-          <span style={{ color: "#e2e8f0" }}>, </span>
-          <span style={{ color: "#fbbf24" }}>"architect"</span>
-          <span style={{ color: "#e2e8f0" }}>)</span>
-        </div>
-        <div>
-          <span style={{ color: "#e2e8f0" }}>graph.</span>
-          <span style={{ color: "#34d399" }}>add_edge</span>
-          <span style={{ color: "#e2e8f0" }}>(</span>
-          <span style={{ color: "#fbbf24" }}>"architect"</span>
-          <span style={{ color: "#e2e8f0" }}>, </span>
-          <span style={{ color: "#fbbf24" }}>"coder"</span>
-          <span style={{ color: "#e2e8f0" }}>)</span>
-        </div>
-      </div>
+      <pre>
+        <span className="tok-kw">from</span> langgraph.graph <span className="tok-kw">import</span>{" "}
+        StateGraph
+        {"\n\n"}
+        graph = StateGraph(AgentState)
+        {"\n"}
+        graph.add_node(<span className="tok-str">"planner"</span>, planner_node)
+        {"\n"}
+        graph.add_node(<span className="tok-str">"architect"</span>, architect_node)
+        {"\n"}
+        graph.add_node(<span className="tok-str">"coder"</span>, coder_node)
+        {"\n\n"}
+        graph.add_edge(<span className="tok-str">"planner"</span>,{" "}
+        <span className="tok-str">"architect"</span>)
+        {"\n"}
+        graph.add_edge(<span className="tok-str">"architect"</span>,{" "}
+        <span className="tok-str">"coder"</span>)
+        {"\n\n"}
+        <span className="tok-com"># coder is the only node with an edge back to itself.</span>
+        {"\n"}
+        <span className="tok-com"># It leaves when the step cursor runs out.</span>
+        {"\n"}
+        graph.add_conditional_edges(<span className="tok-str">"coder"</span>, should_continue)
+      </pre>
     </div>
   );
 }
 
 export function Landing() {
   return (
-    <div style={{ overflowX: "hidden" }}>
-      {/* Background glow */}
-      <div
-        style={{
-          position: "fixed",
-          top: -200,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 800,
-          height: 600,
-          borderRadius: "50%",
-          background:
-            "radial-gradient(ellipse, rgba(124,58,237,0.12) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+    <div className="sheet" style={{ paddingTop: 88 }}>
+      {/* ── Opening ───────────────────────────────────────────────────────── */}
+      <section>
+        <p className="label" style={{ marginBottom: 20 }}>
+          Agentic coding runtime
+        </p>
 
-      {/* Hero */}
-      <section
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "120px 24px 80px",
-          position: "relative",
-          textAlign: "center",
-        }}
-      >
-        <motion.div
-          variants={fadeUp}
-          custom={0}
-          initial="hidden"
-          animate="visible"
-          style={{ marginBottom: 20 }}
-        >
-          <Pill>
-            <Zap size={10} fill="#a78bfa" />
-            Agentic Coding Platform | LangGraph | FastAPI
-          </Pill>
-        </motion.div>
+        <h1 className="display" style={{ maxWidth: "17ch" }}>
+          A coding agent that shows its working
+        </h1>
 
-        <motion.h1
-          variants={fadeUp}
-          custom={1}
-          initial="hidden"
-          animate="visible"
-          style={{
-            fontSize: "clamp(40px, 7vw, 80px)",
-            fontWeight: 700,
-            lineHeight: 1.1,
-            letterSpacing: "-0.04em",
-            color: "#f1f5f9",
-            maxWidth: 860,
-            marginBottom: 24,
-          }}
-        >
-          The{" "}
-          <span
-            style={{
-              background: "linear-gradient(135deg, #a78bfa, #06b6d4)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            Agentic Coding Platform
-          </span>{" "}
-          for tinkerers
-        </motion.h1>
+        <p className="lead" style={{ marginTop: 24, maxWidth: "62ch" }}>
+          Charito turns a prompt into a working project through a planner, an architect, and a
+          coder that loops until it reports <span className="tick">DONE</span>. The graph, the
+          prompt layers, the log stream and the generated files stay on screen while it happens.
+        </p>
 
-        <motion.p
-          variants={fadeUp}
-          custom={2}
-          initial="hidden"
-          animate="visible"
-          style={{
-            fontSize: "clamp(16px, 2vw, 20px)",
-            color: "rgba(226,232,240,0.55)",
-            maxWidth: 600,
-            lineHeight: 1.7,
-            marginBottom: 40,
-          }}
-        >
-          Turn prompts into working code with planner -&gt; architect -&gt; coder
-          orchestration. Track every node live, keep prompt layers controlled,
-          and iterate files until the run reports DONE.
-        </motion.p>
-
-        <motion.div
-          variants={fadeUp}
-          custom={3}
-          initial="hidden"
-          animate="visible"
-          style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}
-        >
-          <NavLink
-            to="/studio"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 24px",
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              color: "#fff",
-              background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-              textDecoration: "none",
-              boxShadow: "0 0 30px rgba(124,58,237,0.35)",
-              transition: "all 0.2s ease",
-            }}
-          >
-            <Zap size={16} />
-            Open Live Studio
-            <ArrowRight size={15} />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 32 }}>
+          <NavLink to="/studio" className="btn btn--primary btn--lg">
+            Open the studio
           </NavLink>
-          <NavLink
-            to="/docs"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 24px",
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              color: "rgba(226,232,240,0.8)",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              textDecoration: "none",
-            }}
-          >
-            <FileCode2 size={16} />
-            Read Docs
+          <NavLink to="/docs" className="btn btn--lg">
+            Read the reference
           </NavLink>
-        </motion.div>
+        </div>
+      </section>
 
-        {/* Stats row */}
-        <motion.div
-          variants={fadeUp}
-          custom={4}
-          initial="hidden"
-          animate="visible"
-          style={{
-            display: "flex",
-            gap: 32,
-            marginTop: 64,
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}
-        >
-          {[
-            { val: "3", label: "Specialized Nodes" },
-            { val: "Live", label: "Graph + Logs" },
-            { val: "CRUD", label: "Workspace Control" },
-            { val: "Guarded", label: "Prompt Policy" },
-          ].map((s) => (
-            <div key={s.label} style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 28,
-                  fontWeight: 700,
-                  color: "#a78bfa",
-                  lineHeight: 1,
-                  marginBottom: 4,
-                }}
+      {/* ── The pipeline. Three ruled rows, no boxes. ──────────────────────── */}
+      <section style={{ marginTop: 104 }}>
+        <hr className="rule-h" style={{ marginBottom: 28 }} />
+        <p className="label" style={{ marginBottom: 22 }}>
+          How a run goes
+        </p>
+
+        <div>
+          {NODES.map(([name, emits, body], i) => (
+            <div
+              key={name}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(26px, max-content) minmax(0, 1fr)",
+                gap: "0 22px",
+                paddingBlock: 22,
+                borderTop: i === 0 ? "none" : "1px solid var(--hair)",
+              }}
+            >
+              <span
+                className="num"
+                style={{ fontSize: "var(--t-small)", color: "var(--ink-4)", paddingTop: 3 }}
               >
-                {s.val}
-              </div>
-              <div style={{ fontSize: 12, color: "rgba(226,232,240,0.4)", fontWeight: 500 }}>
-                {s.label}
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    marginBottom: 6,
+                  }}
+                >
+                  <span
+                    className="num"
+                    style={{ fontSize: "var(--t-body)", fontWeight: 500, color: "var(--ink)" }}
+                  >
+                    {name}
+                  </span>
+                  <span className="label label--quiet">emits {emits}</span>
+                </div>
+                <p className="prose" style={{ fontSize: "var(--t-base)" }}>
+                  {body}
+                </p>
               </div>
             </div>
           ))}
-        </motion.div>
-      </section>
-
-      {/* Workflow section */}
-      <section style={{ padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
-        <motion.div
-          variants={fadeUp}
-          custom={0}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          style={{ textAlign: "center", marginBottom: 48 }}
-        >
-          <p
-            style={{
-              fontSize: 12,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: "#7c3aed",
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              marginBottom: 12,
-            }}
-          >
-            Builder Workflow
-          </p>
-          <h2
-            style={{
-              fontSize: "clamp(28px, 4vw, 42px)",
-              fontWeight: 700,
-              color: "#f1f5f9",
-              letterSpacing: "-0.03em",
-              lineHeight: 1.2,
-            }}
-          >
-            Plan, design, and code in one observable loop
-          </h2>
-        </motion.div>
-
-        {/* Nodes */}
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "stretch" }}>
-          <NodeCard
-            label="01 - PLANNER"
-            icon={<Layers size={18} />}
-            desc="Turns your prompt into an executable plan with features and target files."
-            color="#a78bfa"
-            delay={0}
-          />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              color: "rgba(226,232,240,0.2)",
-              flexShrink: 0,
-            }}
-          >
-            <ChevronRight size={20} />
-          </div>
-          <NodeCard
-            label="02 - ARCHITECT"
-            icon={<Network size={18} />}
-            desc="Converts the plan into ordered implementation steps for each file path."
-            color="#06b6d4"
-            delay={1}
-          />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              color: "rgba(226,232,240,0.2)",
-              flexShrink: 0,
-            }}
-          >
-            <ChevronRight size={20} />
-          </div>
-          <NodeCard
-            label="03 - CODER"
-            icon={<Code2 size={18} />}
-            desc="Executes implementation steps for each file and loops until status is DONE."
-            color="#34d399"
-            delay={2}
-          />
         </div>
-
-        {/* Code snippet */}
-        <motion.div
-          variants={fadeUp}
-          custom={3}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          style={{ marginTop: 40, maxWidth: 560, margin: "40px auto 0" }}
-        >
-          <CodeSnippet />
-        </motion.div>
       </section>
 
-      {/* Features */}
-      <section
-        style={{
-          padding: "80px 24px",
-          maxWidth: 1100,
-          margin: "0 auto",
-        }}
-      >
-        <motion.div
-          variants={fadeUp}
-          custom={0}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          style={{ textAlign: "center", marginBottom: 48 }}
-        >
-          <p
-            style={{
-              fontSize: 12,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: "#7c3aed",
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              marginBottom: 12,
-            }}
-          >
-            Why Builders Choose It
+      {/* ── Specification against the source. ──────────────────────────────── */}
+      <section className="split split--5-7" style={{ marginTop: 96 }}>
+        <div>
+          <p className="label" style={{ marginBottom: 16 }}>
+            Specification
           </p>
-          <h2
-            style={{
-              fontSize: "clamp(28px, 4vw, 42px)",
-              fontWeight: 700,
-              color: "#f1f5f9",
-              letterSpacing: "-0.03em",
-            }}
-          >
-            Ship faster without black-box behavior
-          </h2>
-        </motion.div>
+          <dl className="spec">
+            {SPEC.map(([term, value]) => (
+              <Fragment key={term}>
+                <dt>{term}</dt>
+                <dd>{value}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <Specimen />
+        </div>
+      </section>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {[
-            {
-              icon: <Shield size={18} />,
-              title: "Guarded Prompt Layers",
-              desc: "Keep behavior under control with editable system prompt overrides.",
-            },
-            {
-              icon: <Activity size={18} />,
-              title: "Real-Time SSE Lifecycle",
-              desc: "Watch runs as they happen with live node states and concise progress logs.",
-            },
-            {
-              icon: <Terminal size={18} />,
-              title: "FastAPI Runtime APIs",
-              desc: "Integrate quickly with API endpoints for quick operations.",
-            },
-            {
-              icon: <GitBranch size={18} />,
-              title: "Session Workspace",
-              desc: "Generate inside a session-scoped workspace with safe path validation, editable file operations, and ZIP export.",
-            },
-            {
-              icon: <Download size={18} />,
-              title: "Security by Environment",
-              desc: "Enable env-gated secure mode for workspace auth and reduced verbose client errors in production.",
-            },
-            {
-              icon: <Code2 size={18} />,
-              title: "Live Studio Integration",
-              desc: "Run, inspect, and edit from one React + Zustand studio with synchronized prompts, graph state, logs, and files.",
-            },
-          ].map((f, i) => (
-            <FeatureCard key={f.title} {...f} delay={i * 0.1} />
+      {/* ── What is on screen. A list, not a grid of cards. ────────────────── */}
+      <section style={{ marginTop: 96 }}>
+        <hr className="rule-h" style={{ marginBottom: 28 }} />
+        <h2 style={{ maxWidth: "20ch", marginBottom: 12 }}>Observability is the product</h2>
+        <p className="prose" style={{ marginBottom: 30 }}>
+          Most coding agents give you a spinner and a diff. This one gives you the intermediate
+          state, because the intermediate state is where runs actually go wrong.
+        </p>
+
+        <div style={{ borderTop: "1px solid var(--hair)" }}>
+          {SURFACE.map(([title, body]) => (
+            <div key={title} style={{ paddingBlock: 20, borderBottom: "1px solid var(--hair)" }}>
+              <h3 style={{ marginBottom: 7 }}>{title}</h3>
+              <p className="prose" style={{ fontSize: "var(--t-base)" }}>
+                {body}
+              </p>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* CTA */}
-      <section style={{ padding: "80px 24px", textAlign: "center" }}>
+      {/* ── Close. One line, one action. ───────────────────────────────────── */}
+      <section style={{ marginTop: 96 }}>
+        <hr className="rule-h" style={{ marginBottom: 32 }} />
         <div
           style={{
-            maxWidth: 640,
-            margin: "0 auto",
-            padding: "60px 40px",
-            borderRadius: 20,
-            border: "1px solid rgba(139,92,246,0.2)",
-            background:
-              "linear-gradient(135deg, rgba(124,58,237,0.08), rgba(6,182,212,0.04))",
-            backdropFilter: "blur(8px)",
+            display: "flex",
+            gap: 32,
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
           }}
         >
-          <motion.div
-            variants={fadeUp}
-            custom={0}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-          >
-            <h2
-              style={{
-                fontSize: "clamp(24px, 4vw, 36px)",
-                fontWeight: 700,
-                color: "#f1f5f9",
-                letterSpacing: "-0.03em",
-                marginBottom: 16,
-              }}
-            >
-              Build faster with full visibility
+          <div>
+            <h2 style={{ maxWidth: "18ch", marginBottom: 10 }}>
+              Bring a Groq key and a small prompt
             </h2>
-            <p
-              style={{
-                fontSize: 15,
-                color: "rgba(226,232,240,0.5)",
-                lineHeight: 1.7,
-                marginBottom: 32,
-              }}
-            >
-              Launch Live Studio to run Charito, follow
-              node-by-node progress, edit generated files, and export your
-              workspace as ZIP.
+            <p className="prose" style={{ fontSize: "var(--t-base)", maxWidth: "56ch" }}>
+              The key stays in your browser. Start with something the free tier can finish in one
+              pass — a single-file API, a CLI, one page of static site.
             </p>
-            <NavLink
-              to="/studio"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "12px 28px",
-                borderRadius: 8,
-                fontSize: 15,
-                fontWeight: 600,
-                color: "#fff",
-                background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                textDecoration: "none",
-                boxShadow: "0 0 40px rgba(124,58,237,0.3)",
-              }}
-            >
-              <Zap size={16} />
-              Launch Live Studio
-              <ArrowRight size={15} />
-            </NavLink>
-          </motion.div>
+          </div>
+          <NavLink to="/studio" className="btn btn--primary btn--lg">
+            Open the studio
+          </NavLink>
         </div>
       </section>
     </div>

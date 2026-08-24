@@ -27,6 +27,13 @@ const COPY: Record<string, Copy> = {
     body:
       "Nothing reached it on the last few attempts, so runs, workspace sessions and file operations will fail. It may be restarting. Every page on this site is static and still works meanwhile.",
   },
+  blocked: {
+    tone: "bad",
+    tag: "CORS",
+    title: "The backend is up, but rejecting this origin",
+    body:
+      "It answered the request and then withheld an Access-Control-Allow-Origin header, so the browser discarded the response. This is a backend configuration problem, not a connectivity one — add this site's origin to CORS_ALLOWED_ORIGINS on the backend.",
+  },
   unconfigured: {
     tone: "bad",
     tag: "Not configured",
@@ -105,7 +112,7 @@ export function BackendBar() {
       {expanded && (
         <div className="sheet" style={{ paddingBottom: 16 }}>
           <hr className="rule-h" style={{ marginBottom: 14 }} />
-          <BackendDetail detail={detail} />
+          <BackendDetail detail={detail} blocked={status === "blocked"} />
         </div>
       )}
     </div>
@@ -113,7 +120,13 @@ export function BackendBar() {
 }
 
 /** The technical half of the message: what was tried, and what to do instead. */
-export function BackendDetail({ detail }: { detail: string | null }) {
+export function BackendDetail({ detail, blocked = false }: { detail: string | null; blocked?: boolean }) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://your-app.vercel.app";
+  const recipe = blocked
+    ? `CORS_ALLOWED_ORIGINS=${origin}
+# or, to cover preview deploys too:
+CORS_ALLOWED_ORIGIN_REGEX=^https://.*\.vercel\.app$`
+    : LOCAL_RECIPE;
   return (
     <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))" }}>
       <div>
@@ -131,7 +144,7 @@ export function BackendDetail({ detail }: { detail: string | null }) {
       </div>
       <div>
         <div className="label label--quiet" style={{ marginBottom: 6 }}>
-          Run it locally instead
+          {blocked ? "Set this on the backend" : "Run it locally instead"}
         </div>
         <pre
           className="meta"
@@ -145,7 +158,7 @@ export function BackendDetail({ detail }: { detail: string | null }) {
             overflowX: "auto",
           }}
         >
-{LOCAL_RECIPE}
+{recipe}
         </pre>
       </div>
     </div>
@@ -173,7 +186,7 @@ export function BackendPanel() {
         <p className="notice__text" style={{ marginBottom: 12 }}>
           {copy.body}
         </p>
-        <BackendDetail detail={detail} />
+        <BackendDetail detail={detail} blocked={status === "blocked"} />
         {status !== "unconfigured" && (
           <button type="button" className="btn btn--sm" style={{ marginTop: 12 }} onClick={() => void check()}>
             <RefreshCw size={12} strokeWidth={1.75} />

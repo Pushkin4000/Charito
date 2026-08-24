@@ -49,6 +49,23 @@ describe("backend reachability", () => {
     expect(useBackendStatus.getState().detail).toContain("503");
   });
 
+  it("reports blocked, not offline, when the host answers but CORS rejects it", async () => {
+    // A CORS rejection and a dead host both surface as a bare TypeError; only
+    // the no-cors retry can tell them apart.
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      // A real opaque response reports status 0, but the Response constructor
+      // rejects that; all this branch needs is for the promise to resolve.
+      if (init?.mode === "no-cors") return new Response("", { status: 200 });
+      throw new TypeError("Failed to fetch");
+    }));
+
+    const { useBackendStatus } = await import("@/app/lib/backend-status");
+    await useBackendStatus.getState().check();
+
+    expect(useBackendStatus.getState().status).toBe("blocked");
+    expect(useBackendStatus.getState().detail).toContain("Access-Control-Allow-Origin");
+  });
+
   it("still reports offline when nothing has ever reached the backend", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => {
       throw new TypeError("Failed to fetch");

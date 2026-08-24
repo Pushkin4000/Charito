@@ -16,5 +16,15 @@ services:
         value: "true"
       - key: EXPOSE_VERBOSE_ERRORS
         value: "false"
+      # REQUIRED. Without one of these two, cors_allowed_origins is [] in
+      # production and Starlette rejects every browser request with a bare 400
+      # and no Access-Control-Allow-Origin — the API looks down rather than
+      # misconfigured. Set in the Render dashboard.
+      #   CORS_ALLOWED_ORIGINS      = https://<your-app>.vercel.app
+      #   CORS_ALLOWED_ORIGIN_REGEX = ^https://<project>.*\.vercel\.app$
+      # The regex also covers Vercel preview deployments, whose hostnames
+      # change per branch and per commit.
       - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CORS_ALLOWED_ORIGIN_REGEX
         sync: false

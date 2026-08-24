@@ -22,10 +22,17 @@ import { subscribeReachability } from "@/app/lib/reachability";
  *   offline      -> nothing reached it, and no real request has either
  */
 
-export type BackendStatus = "unconfigured" | "checking" | "waking" | "online" | "offline";
+export type BackendStatus =
+  | "unconfigured"
+  | "checking"
+  | "waking"
+  | "online"
+  | "blocked"
+  | "offline";
 
 const PROBE_TIMEOUT_MS = 20_000;
 const COLD_START_HINT_MS = 6_000;
+const CORS_CHECK_TIMEOUT_MS = 8_000;
 const RETRY_WHEN_DOWN_MS = 15_000;
 const RETRY_WHEN_UP_MS = 120_000;
 /** How long a confirmed round trip keeps outranking a failed probe. */
@@ -56,6 +63,32 @@ function describeFailure(error: unknown): string {
     return error.message;
   }
   return `The browser could not reach ${API_BASE_URL}.`;
+}
+
+/**
+ * A browser deliberately refuses to say whether a failed cross-origin fetch was
+ * a dead host or a CORS rejection — both surface as the same bare TypeError.
+ *
+ * A `no-cors` request tells them apart: the response is opaque and unreadable,
+ * but it only resolves if the server actually answered. Resolving therefore
+ * means the host is up and the earlier failure was the CORS policy; rejecting
+ * means nothing is there at all.
+ */
+async function serverAnsweredDespiteCors(): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), CORS_CHECK_TIMEOUT_MS);
+  try {
+    await fetch(`${API_BASE_URL}/health?_=${Date.now()}`, {
+      method: "GET",
+      mode: "no-cors",
+      signal: controller.signal,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 let inFlight: Promise<void> | null = null;
@@ -139,6 +172,19 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
           return;
         }
 
+        // Only a TypeError can be a CORS rejection; a timeout is a timeout.
+        if (error instanceof TypeError && (await serverAnsweredDespiteCors())) {
+          const origin = typeof window !== "undefined" ? window.location.origin : "this origin";
+          set({
+            status: "blocked",
+            detail: `${API_BASE_URL} answered, but did not return an Access-Control-Allow-Origin header for ${origin}.`,
+            latencyMs: null,
+            lastCheckedAt: Date.now(),
+            consecutiveFailures: get().consecutiveFailures + 1,
+          });
+          return;
+        }
+
         set({
           status: "offline",
           detail: describeFailure(error),
@@ -206,5 +252,5 @@ subscribeReachability((event) => {
 
 /** True when a request to the backend has no chance of succeeding right now. */
 export function isBackendUnreachable(status: BackendStatus): boolean {
-  return status === "offline" || status === "unconfigured";
+  return status === "offline" || status === "unconfigured" || status === "blocked";
 }

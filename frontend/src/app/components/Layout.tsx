@@ -23,6 +23,7 @@ function StatusTell() {
     checking: { color: "var(--ink-4)", text: "Checking" },
     waking: { color: "var(--warn)", text: "Waking" },
     offline: { color: "var(--bad)", text: "API offline" },
+    blocked: { color: "var(--bad)", text: "CORS blocked" },
     unconfigured: { color: "var(--bad)", text: "No API URL" },
   };
   const current = tone[status] ?? tone.checking;

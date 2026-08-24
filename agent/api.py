@@ -730,9 +730,22 @@ app = FastAPI(
     ),
 )
 
+if not SECURITY_CONFIG.cors_is_configured:
+    # With an empty allowlist Starlette rejects every preflight with a bare 400
+    # and no Access-Control-Allow-Origin, so the browser reports a generic
+    # network failure and the API looks down rather than misconfigured. Say so
+    # at boot, where it is actually diagnosable.
+    logger.warning(
+        "CORS is not configured: no browser origin can call this API. "
+        "Set CORS_ALLOWED_ORIGINS to your frontend origin "
+        "(e.g. https://your-app.vercel.app), or CORS_ALLOWED_ORIGIN_REGEX to "
+        "cover preview deployments as well."
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=SECURITY_CONFIG.cors_allowed_origins,
+    allow_origin_regex=SECURITY_CONFIG.cors_allowed_origin_regex,
     allow_credentials=SECURITY_CONFIG.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -778,6 +791,9 @@ def health() -> dict[str, str | int | bool]:
         "max_editable_file_chars": workspace_service.MAX_EDITABLE_FILE_CHARS,
         "workspace_auth_required": SECURITY_CONFIG.require_workspace_auth,
         "app_env": SECURITY_CONFIG.app_env,
+        # Lets an operator curl /health and immediately see whether a browser
+        # could have reached this endpoint at all.
+        "cors_configured": SECURITY_CONFIG.cors_is_configured,
     }
 
 

@@ -27,6 +27,7 @@ def _parse_csv(value: str | None) -> list[str]:
 class SecurityConfig:
     app_env: str
     cors_allowed_origins: list[str]
+    cors_allowed_origin_regex: str | None
     cors_allow_credentials: bool
     require_workspace_auth: bool
     expose_verbose_errors: bool
@@ -34,6 +35,11 @@ class SecurityConfig:
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def cors_is_configured(self) -> bool:
+        """False means no browser origin can reach this API at all."""
+        return bool(self.cors_allowed_origins) or bool(self.cors_allowed_origin_regex)
 
 
 def load_security_config() -> SecurityConfig:
@@ -52,6 +58,10 @@ def load_security_config() -> SecurityConfig:
             "http://localhost:3000",
             "http://127.0.0.1:3000",
         ]
+
+    # A regex is how Vercel preview deployments get covered: their hostnames
+    # change per branch and per commit, so an exact-match list can never keep up.
+    cors_allowed_origin_regex = (os.getenv("CORS_ALLOWED_ORIGIN_REGEX") or "").strip() or None
 
     cors_allow_credentials_default = bool(cors_allowed_origins) and "*" not in cors_allowed_origins
     cors_allow_credentials = _parse_bool(
@@ -73,6 +83,7 @@ def load_security_config() -> SecurityConfig:
     return SecurityConfig(
         app_env=app_env,
         cors_allowed_origins=cors_allowed_origins,
+        cors_allowed_origin_regex=cors_allowed_origin_regex,
         cors_allow_credentials=cors_allow_credentials,
         require_workspace_auth=require_workspace_auth,
         expose_verbose_errors=expose_verbose_errors,

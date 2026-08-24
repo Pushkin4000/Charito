@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 import { getStoredApiKey } from "@/app/lib/api-key-storage";
+import { notifyReachable, notifyUnreachable } from "@/app/lib/reachability";
 
 export type NodeId = "planner" | "architect" | "coder";
 
@@ -173,9 +174,23 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    notifyReachable();
+    return response;
+  },
   (error: unknown) => {
     const axiosError = error as AxiosError;
+
+    // A response of any status proves the backend is up; only a request that
+    // never completed a round trip counts as unreachable. Errors raised by the
+    // request interceptor have neither a response nor a transport code, so they
+    // are deliberately left alone.
+    if (axiosError.response) {
+      notifyReachable();
+    } else if (axiosError.code === "ERR_NETWORK" || axiosError.code === "ECONNABORTED") {
+      notifyUnreachable(axiosError.message || "The request did not reach the backend.");
+    }
+
     const payload = axiosError.response?.data;
     const fallback = axiosError.message || "Request failed.";
     const message = extractErrorMessage(payload, fallback);

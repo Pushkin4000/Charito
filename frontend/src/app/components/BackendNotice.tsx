@@ -25,7 +25,7 @@ const COPY: Record<string, Copy> = {
     tag: "Offline",
     title: "The backend is not answering",
     body:
-      "Runs, workspace sessions and file operations will fail. The hosted instance lives on Render and is currently suspended. Every page on this site is static and still works.",
+      "Nothing reached it on the last few attempts, so runs, workspace sessions and file operations will fail. It may be restarting. Every page on this site is static and still works meanwhile.",
   },
   unconfigured: {
     tone: "bad",
@@ -37,9 +37,9 @@ const COPY: Record<string, Copy> = {
   waking: {
     tone: "warn",
     tag: "Waking",
-    title: "Waiting on a cold start",
+    title: "The backend is slow to answer",
     body:
-      "Render suspends idle instances. The first request after a sleep takes 30 to 60 seconds to answer — holding the connection open.",
+      "The first request is taking longer than usual — holding the connection open. If the instance is starting up this can take up to a minute.",
   },
 };
 

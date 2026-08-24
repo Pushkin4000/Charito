@@ -1,34 +1,42 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "@/app/lib/api-client";
+import { subscribeReachability } from "@/app/lib/reachability";
 
 /**
- * Reachability probe for the FastAPI backend.
+ * Reachability reporting for the FastAPI backend.
  *
- * The hosted backend runs on a Render instance that can be suspended or
- * cold-starting, so "not answering" is not the same failure as "answered with
- * an error". This module separates the two so the UI can say which one it is:
+ * There are two sources of evidence, and they are not equal:
  *
+ *   1. REAL API TRAFFIC, reported through `reachability`. If any request came
+ *      back — 200, 401, 500, it does not matter — the backend is up. This is
+ *      the strongest signal available and it always wins.
+ *   2. A synthetic GET /health probe, for the pages that make no API calls of
+ *      their own (overview, reference, about). It is the weaker signal, and it
+ *      is not allowed to contradict recent real traffic.
+ *
+ * States:
  *   unconfigured -> VITE_API_BASE_URL was never set in this build
  *   checking     -> a probe is in flight and has been fast so far
- *   waking       -> the probe has been in flight past COLD_START_HINT_MS,
- *                   which is what a Render cold start looks like
- *   online       -> /health answered 2xx
- *   offline      -> the request failed, timed out, or the host answered with
- *                   a gateway/suspended status
+ *   waking       -> the probe has been in flight past COLD_START_HINT_MS
+ *   online       -> the backend answered
+ *   offline      -> nothing reached it, and no real request has either
  */
 
 export type BackendStatus = "unconfigured" | "checking" | "waking" | "online" | "offline";
 
-const PROBE_TIMEOUT_MS = 45_000;
-const COLD_START_HINT_MS = 3_500;
-const RETRY_MIN_MS = 15_000;
-const RETRY_MAX_MS = 120_000;
+const PROBE_TIMEOUT_MS = 20_000;
+const COLD_START_HINT_MS = 6_000;
+const RETRY_WHEN_DOWN_MS = 15_000;
+const RETRY_WHEN_UP_MS = 120_000;
+/** How long a confirmed round trip keeps outranking a failed probe. */
+const TRAFFIC_GRACE_MS = 60_000;
 
 interface BackendStatusState {
   status: BackendStatus;
   detail: string | null;
   latencyMs: number | null;
   lastCheckedAt: number | null;
+  lastReachableAt: number | null;
   consecutiveFailures: number;
   check: () => Promise<void>;
   startPolling: () => () => void;
@@ -39,9 +47,9 @@ function describeFailure(error: unknown): string {
     return `No response from ${API_BASE_URL} within ${Math.round(PROBE_TIMEOUT_MS / 1000)}s.`;
   }
   if (error instanceof TypeError) {
-    // fetch() rejects with TypeError for DNS failure, connection refused,
-    // TLS failure and CORS rejection alike. The browser deliberately does not
-    // tell us which, so do not pretend to know.
+    // fetch() rejects with TypeError for DNS failure, connection refused, TLS
+    // failure and CORS rejection alike. The browser deliberately does not tell
+    // us which, so do not pretend to know.
     return `The browser could not reach ${API_BASE_URL}.`;
   }
   if (error instanceof Error && error.message) {
@@ -59,6 +67,7 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
     : "VITE_API_BASE_URL was not set when this build was produced, so the app has no backend address to call.",
   latencyMs: null,
   lastCheckedAt: null,
+  lastReachableAt: null,
   consecutiveFailures: 0,
 
   check: async () => {
@@ -83,19 +92,31 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
 
     inFlight = (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/health`, {
+        // NOTE: no `cache: "no-store"` here, and there must not be.
+        //
+        // Per the Fetch spec, a cache mode of "no-store" or "reload" makes the
+        // browser append `Cache-Control: no-cache` and `Pragma: no-cache`
+        // REQUEST headers. Neither is CORS-safelisted, so what should be a
+        // simple cross-origin GET instead requires a preflight — a round trip
+        // that no other call in this app takes, and one this probe was failing
+        // on while ordinary traffic to the same origin succeeded. A query
+        // parameter defeats caching without touching the headers.
+        const response = await fetch(`${API_BASE_URL}/health?_=${startedAt}`, {
           method: "GET",
           signal: controller.signal,
-          cache: "no-store",
         });
 
         if (!response.ok) {
+          // The backend answered, so it is reachable. A bad status is a
+          // backend problem, not a connectivity one, and the store's own error
+          // reporting is the right place for it.
           set({
-            status: "offline",
+            status: "online",
             detail: `${API_BASE_URL}/health answered HTTP ${response.status}.`,
             latencyMs: Date.now() - startedAt,
             lastCheckedAt: Date.now(),
-            consecutiveFailures: get().consecutiveFailures + 1,
+            lastReachableAt: Date.now(),
+            consecutiveFailures: 0,
           });
           return;
         }
@@ -105,9 +126,19 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
           detail: null,
           latencyMs: Date.now() - startedAt,
           lastCheckedAt: Date.now(),
+          lastReachableAt: Date.now(),
           consecutiveFailures: 0,
         });
       } catch (error) {
+        const reachedAt = get().lastReachableAt;
+        const trafficIsRecent = reachedAt !== null && Date.now() - reachedAt < TRAFFIC_GRACE_MS;
+
+        // A failed probe never overrules a request that actually came back.
+        if (trafficIsRecent) {
+          set({ lastCheckedAt: Date.now() });
+          return;
+        }
+
         set({
           status: "offline",
           detail: describeFailure(error),
@@ -131,11 +162,9 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
 
     const schedule = () => {
       if (stopped) return;
-      const failures = get().consecutiveFailures;
-      const delay =
-        get().status === "online"
-          ? RETRY_MAX_MS
-          : Math.min(RETRY_MIN_MS * Math.max(1, failures), RETRY_MAX_MS);
+      // Recovery should be quick, so a down backend is retried on a short fixed
+      // interval rather than backing off into a multi-minute silence.
+      const delay = get().status === "online" ? RETRY_WHEN_UP_MS : RETRY_WHEN_DOWN_MS;
       timerId = window.setTimeout(run, delay);
     };
 
@@ -155,6 +184,25 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
     };
   },
 }));
+
+// Real traffic outranks the probe, in both directions and immediately.
+subscribeReachability((event) => {
+  if (event.reachable) {
+    useBackendStatus.setState({
+      status: "online",
+      detail: null,
+      lastReachableAt: event.at,
+      consecutiveFailures: 0,
+    });
+    return;
+  }
+
+  useBackendStatus.setState({
+    status: "offline",
+    detail: event.detail ?? null,
+    lastCheckedAt: event.at,
+  });
+});
 
 /** True when a request to the backend has no chance of succeeding right now. */
 export function isBackendUnreachable(status: BackendStatus): boolean {

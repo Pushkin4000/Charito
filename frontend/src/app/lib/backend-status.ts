@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { API_BASE_URL } from "@/app/lib/api-client";
+import { API_BASE_URL, apiClient } from "@/app/lib/api-client";
 import { subscribeReachability } from "@/app/lib/reachability";
 
 /**
@@ -10,9 +10,23 @@ import { subscribeReachability } from "@/app/lib/reachability";
  *   1. REAL API TRAFFIC, reported through `reachability`. If any request came
  *      back — 200, 401, 500, it does not matter — the backend is up. This is
  *      the strongest signal available and it always wins.
- *   2. A synthetic GET /health probe, for the pages that make no API calls of
- *      their own (overview, reference, about). It is the weaker signal, and it
- *      is not allowed to contradict recent real traffic.
+ *   2. A GET /health probe, for the pages that make no API calls of their own
+ *      (overview, reference, about). It is the weaker signal, and it is not
+ *      allowed to contradict recent real traffic.
+ *
+ * THE PROBE GOES THROUGH `apiClient`, AND MUST. It used to be a bare `fetch`,
+ * and twice that earned a bug where the probe failed against a backend that
+ * ordinary traffic was reaching perfectly — first a `cache: "no-store"` that
+ * forced a preflight (fixed in 234ef09), then a divergence that left the
+ * overview page pinned to "waking" while the studio, one navigation away, went
+ * online instantly off its very first request.
+ *
+ * The pattern is the defect, not either instance of it: a probe shaped
+ * differently from real traffic tests a path that no real traffic takes, so it
+ * can fail in ways nothing else does and report an outage that is not there.
+ * Sharing the axios instance makes the probe *be* real traffic — same headers,
+ * same interceptors, same CORS shape — so it cannot disagree with the requests
+ * it is meant to be predicting.
  *
  * COLD STARTS. The backend is a free-tier Render service: it is suspended after
  * fifteen idle minutes and takes appreciably longer to boot than a single probe
@@ -75,6 +89,9 @@ function describeFailure(error: unknown): string {
   if (error instanceof DOMException && error.name === "AbortError") {
     return `No response from ${API_BASE_URL} within ${Math.round(PROBE_TIMEOUT_MS / 1000)}s.`;
   }
+  if (error instanceof Error && /timeout/i.test(error.message)) {
+    return `No response from ${API_BASE_URL} within ${Math.round(PROBE_TIMEOUT_MS / 1000)}s.`;
+  }
   if (error instanceof TypeError) {
     // fetch() rejects with TypeError for DNS failure, connection refused, TLS
     // failure and CORS rejection alike. The browser deliberately does not tell
@@ -124,6 +141,20 @@ function mayStillBeWaking(): boolean {
   return lastReachableAt === null && Date.now() - bootedAt < COLD_START_BUDGET_MS;
 }
 
+/**
+ * The probe currently running, so overlapping callers share one round trip.
+ *
+ * It is cleared in the probe's own `finally`, which is why the body below is
+ * started on a microtask rather than invoked inline. Called inline, a body that
+ * runs to completion synchronously -- a `fetch` that THROWS rather than
+ * returning a rejected promise, which is what a blocked or intercepted request
+ * does -- reaches its `finally` and nulls this before the assignment that sets
+ * it has even finished. The assignment then lands on top, leaving a settled
+ * promise here for good, and from that moment every `check()` short-circuits on
+ * it and no probe ever runs again: the status freezes at whatever that first
+ * attempt produced, with the poller still faithfully calling a function that
+ * can no longer do anything.
+ */
 let inFlight: Promise<void> | null = null;
 
 export const useBackendStatus = create<BackendStatusState>((set, get) => ({
@@ -147,8 +178,6 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
     }
 
     const startedAt = Date.now();
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
     const coldStartId = window.setTimeout(() => {
       if (get().status === "checking") {
         set({ status: "waking" });
@@ -159,36 +188,17 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
     // back to "checking" on every retry made the banner blink out and back in.
     // The initial state is already "checking", so the first probe reads right.
 
-    inFlight = (async () => {
+    // Deferred to a microtask so the assignment below always wins the race
+    // against this body's `finally`. See the note on `inFlight`.
+    inFlight = Promise.resolve().then(async () => {
       try {
-        // NOTE: no `cache: "no-store"` here, and there must not be.
-        //
-        // Per the Fetch spec, a cache mode of "no-store" or "reload" makes the
-        // browser append `Cache-Control: no-cache` and `Pragma: no-cache`
-        // REQUEST headers. Neither is CORS-safelisted, so what should be a
-        // simple cross-origin GET instead requires a preflight — a round trip
-        // that no other call in this app takes, and one this probe was failing
-        // on while ordinary traffic to the same origin succeeded. A query
-        // parameter defeats caching without touching the headers.
-        const response = await fetch(`${API_BASE_URL}/health?_=${startedAt}`, {
-          method: "GET",
-          signal: controller.signal,
+        // The cache-busting parameter stays in the query string rather than in
+        // a Cache-Control header: request headers that are not CORS-safelisted
+        // force a preflight, which is what broke this probe in 234ef09.
+        await apiClient.get("/health", {
+          params: { _: startedAt },
+          timeout: PROBE_TIMEOUT_MS,
         });
-
-        if (!response.ok) {
-          // The backend answered, so it is reachable. A bad status is a
-          // backend problem, not a connectivity one, and the store's own error
-          // reporting is the right place for it.
-          set({
-            status: "online",
-            detail: `${API_BASE_URL}/health answered HTTP ${response.status}.`,
-            latencyMs: Date.now() - startedAt,
-            lastCheckedAt: Date.now(),
-            lastReachableAt: Date.now(),
-            consecutiveFailures: 0,
-          });
-          return;
-        }
 
         set({
           status: "online",
@@ -200,6 +210,18 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
         });
       } catch (error) {
         const reachedAt = get().lastReachableAt;
+
+        // A non-2xx still reaches the response interceptor, which reports the
+        // round trip and flips the store online before this catch runs. The
+        // backend answered; a bad status is its problem to report, not
+        // connectivity's. The timestamp must be compared against this probe's
+        // own start -- "the store is online" alone would also match a stale
+        // success from minutes ago and could never report a real outage.
+        if (reachedAt !== null && reachedAt >= startedAt) {
+          set({ lastCheckedAt: Date.now(), latencyMs: Date.now() - startedAt });
+          return;
+        }
+
         const trafficIsRecent = reachedAt !== null && Date.now() - reachedAt < TRAFFIC_GRACE_MS;
 
         // A failed probe never overrules a request that actually came back.
@@ -208,8 +230,11 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
           return;
         }
 
-        // Only a TypeError can be a CORS rejection; a timeout is a timeout.
-        if (error instanceof TypeError && (await serverAnsweredDespiteCors())) {
+        // A timeout is a timeout; anything else may be a CORS rejection, so
+        // ask. Axios reports both as plain Errors, so the old `instanceof
+        // TypeError` test no longer distinguishes them and must not be used.
+        const timedOut = error instanceof Error && /timeout/i.test(error.message);
+        if (!timedOut && (await serverAnsweredDespiteCors())) {
           const origin = typeof window !== "undefined" ? window.location.origin : "this origin";
           set({
             status: "blocked",
@@ -231,11 +256,10 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
           consecutiveFailures: get().consecutiveFailures + 1,
         });
       } finally {
-        window.clearTimeout(timeoutId);
         window.clearTimeout(coldStartId);
         inFlight = null;
       }
-    })();
+    });
 
     return inFlight;
   },

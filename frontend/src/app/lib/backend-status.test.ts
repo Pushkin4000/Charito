@@ -108,6 +108,10 @@ describe("backend reachability", () => {
     const { useBackendStatus } = await mount({ probe: NETWORK_FAILURE });
     // Past the cold-start budget: a sleeping instance would have answered.
     useBackendStatus.setState({ bootedAt: elapsed() });
+
+    // One failure is a blip and reports nothing; the second convicts.
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("waking");
     await useBackendStatus.getState().check();
     expect(useBackendStatus.getState().status).toBe("offline");
   });
@@ -184,6 +188,44 @@ describe("backend reachability", () => {
     expect(useBackendStatus.getState().status).toBe("offline");
   });
 
+  it("does not convict the backend on a single failure", async () => {
+    // The asymmetry that makes this worth a test: a false "online" costs one
+    // confused user a failed run; a false "offline" tells every visitor the
+    // product is broken. Only the second is worth being slow about.
+    const { useBackendStatus } = await mount({ probe: TIMEOUT });
+    useBackendStatus.setState({ bootedAt: elapsed() });
+
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("waking");
+    expect(useBackendStatus.getState().consecutiveFailures).toBe(1);
+  });
+
+  it("forgets the failure count as soon as the backend answers", async () => {
+    let alive = false;
+    const { useBackendStatus } = await mount({
+      probe: async () => {
+        if (!alive) throw new Error("timeout of 20000ms exceeded");
+        return { status: 200 };
+      },
+    });
+    useBackendStatus.setState({ bootedAt: elapsed() });
+
+    await useBackendStatus.getState().check();
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("offline");
+
+    alive = true;
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("online");
+    expect(useBackendStatus.getState().consecutiveFailures).toBe(0);
+
+    // Recovery has to reset the tally, or one later blip re-convicts instantly.
+    alive = false;
+    useBackendStatus.setState({ lastReachableAt: elapsed() });
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("waking");
+  });
+
   it("stops extending the cold-start grace once the backend has answered once", async () => {
     let alive = true;
     const { useBackendStatus } = await mount({
@@ -200,6 +242,7 @@ describe("backend reachability", () => {
     alive = false;
     useBackendStatus.setState({ lastReachableAt: elapsed() });
     await useBackendStatus.getState().check();
+    await useBackendStatus.getState().check();
     expect(useBackendStatus.getState().status).toBe("offline");
   });
 
@@ -211,6 +254,7 @@ describe("backend reachability", () => {
     expect(useBackendStatus.getState().status).toBe("waking");
 
     useBackendStatus.setState({ bootedAt: elapsed() });
+    notifyUnreachable("Network Error");
     notifyUnreachable("Network Error");
     expect(useBackendStatus.getState().status).toBe("offline");
   });

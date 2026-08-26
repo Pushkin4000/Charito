@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Menu, X } from "lucide-react";
 import { BackendBar, useBackendProbe } from "@/app/components/BackendNotice";
-import { useBackendStatus } from "@/app/lib/backend-status";
+import { useBackendStatus, type BackendStatus } from "@/app/lib/backend-status";
 
 const NAV = [
   { to: "/", label: "Overview" },
@@ -14,27 +14,37 @@ const NAV = [
 
 const REPO_URL = "https://github.com/Pushkin4000/Intern-Mini/tree/Deploy-branch";
 
-/** Reachability tell in the header, so the state is legible without a banner. */
+/**
+ * Reachability tell in the header.
+ *
+ * It reports only what has actually been observed. `checking` and `waking` both
+ * mean the app has no evidence yet, and neither earns a place in the header: a
+ * cautious-looking dot on every cold load is a worse lie than silence, because
+ * it reads as a fault to anyone who did not write it. The tell appears when
+ * there is something real to say -- the backend answered, or it demonstrably
+ * did not.
+ */
+const TELL: Partial<Record<BackendStatus, { color: string; text: string }>> = {
+  online: { color: "var(--ok)", text: "API online" },
+  offline: { color: "var(--bad)", text: "API offline" },
+  blocked: { color: "var(--bad)", text: "CORS blocked" },
+  unconfigured: { color: "var(--bad)", text: "No API URL" },
+};
+
 function StatusTell() {
   const status = useBackendStatus((state) => state.status);
 
-  const tone: Record<string, { color: string; text: string }> = {
-    online: { color: "var(--ok)", text: "API online" },
-    checking: { color: "var(--ink-4)", text: "Checking" },
-    waking: { color: "var(--warn)", text: "Waking" },
-    offline: { color: "var(--bad)", text: "API offline" },
-    blocked: { color: "var(--bad)", text: "CORS blocked" },
-    unconfigured: { color: "var(--bad)", text: "No API URL" },
-  };
-  const current = tone[status] ?? tone.checking;
-  const pending = status === "waking" || status === "checking";
+  const current = TELL[status];
+  if (!current) {
+    return null;
+  }
 
   return (
     <span
       title={`Backend status: ${status}`}
       style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
     >
-      <span className={pending ? "dot breathe" : "dot"} style={{ background: current.color }} />
+      <span className="dot" style={{ background: current.color }} />
       <span style={{ fontSize: "var(--t-small)", color: "var(--ink-3)" }}>{current.text}</span>
     </span>
   );

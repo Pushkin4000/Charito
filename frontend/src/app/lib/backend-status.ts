@@ -36,13 +36,26 @@ import { subscribeReachability } from "@/app/lib/reachability";
  * reports `waking`, not `offline`. A CORS rejection is exempt: the server
  * answered, so it is awake, and the verdict is immediate.
  *
+ * OPTIMISTIC BY DEFAULT. The UI never claims a problem it has not actually
+ * observed. `checking` and `waking` both mean "no evidence either way", and
+ * both render as nothing at all -- no dot, no banner -- so the only way to see
+ * a fault reported is for one to have been demonstrated. Reaching `offline`
+ * therefore takes a spent cold-start budget AND repeated failures, because a
+ * single failed request is a blip and this indicator is read as a verdict.
+ *
+ * The asymmetry is deliberate: a false "online" costs a confused user one
+ * failed run, while a false "offline" tells every visitor the product is
+ * broken. Only the second is worth being slow and cautious about.
+ *
  * States:
- *   unconfigured -> VITE_API_BASE_URL was never set in this build
- *   checking     -> a probe is in flight and has been fast so far
- *   waking       -> the probe is slow, or is failing inside the cold-start budget
+ *   unconfigured -> VITE_API_BASE_URL was never set in this build (definitive,
+ *                   known before any request is made)
+ *   checking     -> no evidence yet; renders as nothing
+ *   waking       -> no evidence yet, and something has failed but not enough to
+ *                   convict; renders as nothing
  *   online       -> the backend answered
- *   offline      -> nothing reached it, no real request has either, and the
- *                   cold-start budget is spent
+ *   blocked      -> the server answered and refused this origin (definitive)
+ *   offline      -> repeated failures, no traffic, cold-start budget spent
  */
 
 export type BackendStatus =
@@ -71,6 +84,14 @@ const TRAFFIC_GRACE_MS = 60_000;
  * so is the honest report.
  */
 const COLD_START_BUDGET_MS = 90_000;
+/**
+ * Failures required before the UI will say "offline".
+ *
+ * One failed request is a blip -- a dropped connection, a sleeping laptop, a
+ * flaky hop. Saying a product is down on that evidence is worse than saying
+ * nothing, so the claim waits for a second failure to agree with the first.
+ */
+const MIN_FAILURES_BEFORE_OFFLINE = 2;
 
 interface BackendStatusState {
   status: BackendStatus;
@@ -139,6 +160,18 @@ async function serverAnsweredDespiteCors(): Promise<boolean> {
 function mayStillBeWaking(): boolean {
   const { lastReachableAt, bootedAt } = useBackendStatus.getState();
   return lastReachableAt === null && Date.now() - bootedAt < COLD_START_BUDGET_MS;
+}
+
+/**
+ * What to report after a failure. `waking` is the honest answer until the
+ * backend has been given its cold-start budget AND failed enough times to mean
+ * it -- until then the app knows nothing, and says nothing.
+ */
+function statusAfterFailure(failures: number): BackendStatus {
+  if (mayStillBeWaking()) {
+    return "waking";
+  }
+  return failures >= MIN_FAILURES_BEFORE_OFFLINE ? "offline" : "waking";
 }
 
 /**
@@ -246,14 +279,15 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
           return;
         }
 
+        const failures = get().consecutiveFailures + 1;
         set({
           // A first visit to a suspended instance fails exactly like an outage
-          // does; only the clock tells them apart.
-          status: mayStillBeWaking() ? "waking" : "offline",
+          // does; only the clock, and a second opinion, tell them apart.
+          status: statusAfterFailure(failures),
           detail: describeFailure(error),
           latencyMs: null,
           lastCheckedAt: Date.now(),
-          consecutiveFailures: get().consecutiveFailures + 1,
+          consecutiveFailures: failures,
         });
       } finally {
         window.clearTimeout(coldStartId);
@@ -312,12 +346,14 @@ subscribeReachability((event) => {
     return;
   }
 
-  // Same rule as the probe: a request that failed to land before anything has
-  // ever landed is not proof of an outage during a cold start.
+  // Same rule as the probe: one request that failed to land is not proof of an
+  // outage, and during a cold start it is not even evidence of one.
+  const failures = useBackendStatus.getState().consecutiveFailures + 1;
   useBackendStatus.setState({
-    status: mayStillBeWaking() ? "waking" : "offline",
+    status: statusAfterFailure(failures),
     detail: event.detail ?? null,
     lastCheckedAt: event.at,
+    consecutiveFailures: failures,
   });
 });
 

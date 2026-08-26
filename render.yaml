@@ -2,7 +2,18 @@ services:
   - type: web
     name: charito-backend
     runtime: python
-    plan: free
+    # AUTHORITATIVE, and it overrides the dashboard. A Blueprint sync applies
+    # whatever is written here, so a `plan: free` in this file silently
+    # downgrades a paid instance every time the blueprint re-syncs -- which is
+    # what happened on 2026-08-26 ("Compute plan changed from Starter to Free").
+    #
+    # Free instances suspend after fifteen idle minutes. Resuming one takes ~32s
+    # measured at the edge, and because that is longer than the frontend's
+    # health probe will wait, the first visit after any quiet spell renders a
+    # "backend is not answering" banner on a backend that is merely asleep.
+    #
+    # Do not set this back to `free` without also accepting that banner.
+    plan: starter
     branch: Deploy-branch
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn agent.api:app --host 0.0.0.0 --port $PORT

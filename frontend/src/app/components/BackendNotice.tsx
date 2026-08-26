@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, ChevronDown } from "lucide-react";
 import { API_BASE_URL } from "@/app/lib/api-client";
-import { useBackendStatus } from "@/app/lib/backend-status";
+import { useBackendStatus, type BackendStatus } from "@/app/lib/backend-status";
 
 const LOCAL_RECIPE = `uvicorn agent.api:app --port 8000
 VITE_API_BASE_URL=http://localhost:8000 npm run dev`;
@@ -44,11 +44,23 @@ const COPY: Record<string, Copy> = {
   waking: {
     tone: "warn",
     tag: "Waking",
-    title: "The backend is slow to answer",
+    title: "The backend is starting up",
     body:
-      "The first request is taking longer than usual — holding the connection open. If the instance is starting up this can take up to a minute.",
+      "It is a free-tier instance that suspends when idle, so the first request after a quiet spell has to wake it. This usually takes under a minute; the run will start on its own once it answers.",
   },
 };
+
+/**
+ * Statuses the site-wide bar interrupts for.
+ *
+ * `waking` is deliberately absent. A cold start is the ordinary way this site
+ * loads, not a fault, and a banner claiming trouble on every first visit — one
+ * that then clears itself unread — teaches people to ignore the bar for the
+ * times something is actually wrong. The header's status tell already reports
+ * it, quietly and continuously, which is the right weight for a state that
+ * resolves on its own.
+ */
+const BAR_STATUSES = new Set<BackendStatus>(["offline", "blocked", "unconfigured"]);
 
 /**
  * Site-wide reachability bar. Renders nothing while the backend answers, so it
@@ -60,7 +72,7 @@ export function BackendBar() {
   const check = useBackendStatus((state) => state.check);
   const [expanded, setExpanded] = useState(false);
 
-  const copy = COPY[status];
+  const copy = BAR_STATUSES.has(status) ? COPY[status] : undefined;
   if (!copy) {
     return null;
   }

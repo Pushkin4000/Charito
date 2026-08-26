@@ -30,7 +30,9 @@ describe("backend reachability", () => {
     const { notifyReachable } = await import("@/app/lib/reachability");
 
     await useBackendStatus.getState().check();
-    expect(useBackendStatus.getState().status).toBe("offline");
+    // Nothing has reached the backend yet, so a failed probe means "still
+    // waking", not "down" -- see the cold-start tests below.
+    expect(useBackendStatus.getState().status).toBe("waking");
 
     // Generation works -> a real response came back.
     notifyReachable();
@@ -71,7 +73,74 @@ describe("backend reachability", () => {
       throw new TypeError("Failed to fetch");
     }));
     const { useBackendStatus } = await import("@/app/lib/backend-status");
+    // Past the cold-start budget: a sleeping instance would have answered.
+    useBackendStatus.setState({ bootedAt: Date.now() - 10 * 60_000 });
     await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("offline");
+  });
+
+  // -- Cold starts -----------------------------------------------------------
+  //
+  // The backend is a free-tier Render service. It sleeps after 15 idle minutes
+  // and takes 30-60s to come back, which is longer than one probe timeout. A
+  // failed probe in that window is not evidence that the backend is down.
+
+  it("holds at 'waking' rather than 'offline' while the backend may still be booting", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }));
+
+    const { useBackendStatus } = await import("@/app/lib/backend-status");
+    await useBackendStatus.getState().check();
+
+    expect(useBackendStatus.getState().status).toBe("waking");
+    expect(useBackendStatus.getState().consecutiveFailures).toBe(1);
+  });
+
+  it("falls through to offline once the cold-start budget is spent", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }));
+
+    const { useBackendStatus } = await import("@/app/lib/backend-status");
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("waking");
+
+    useBackendStatus.setState({ bootedAt: Date.now() - 10 * 60_000 });
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("offline");
+  });
+
+  it("stops extending the cold-start grace once the backend has answered once", async () => {
+    let alive = true;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      if (alive) return new Response("{}", { status: 200 });
+      throw new TypeError("Failed to fetch");
+    }));
+
+    const { useBackendStatus } = await import("@/app/lib/backend-status");
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("online");
+
+    // It was demonstrably up, so a later failure is a real outage. Wind the
+    // traffic grace back so it is not what keeps the status online.
+    alive = false;
+    useBackendStatus.setState({ lastReachableAt: Date.now() - 10 * 60_000 });
+    await useBackendStatus.getState().check();
+    expect(useBackendStatus.getState().status).toBe("offline");
+  });
+
+  it("reports a failed real request as 'waking' during the cold-start window", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+
+    const { useBackendStatus } = await import("@/app/lib/backend-status");
+    const { notifyUnreachable } = await import("@/app/lib/reachability");
+
+    notifyUnreachable("Network Error");
+    expect(useBackendStatus.getState().status).toBe("waking");
+
+    useBackendStatus.setState({ bootedAt: Date.now() - 10 * 60_000 });
+    notifyUnreachable("Network Error");
     expect(useBackendStatus.getState().status).toBe("offline");
   });
 });

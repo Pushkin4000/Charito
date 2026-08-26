@@ -14,12 +14,21 @@ import { subscribeReachability } from "@/app/lib/reachability";
  *      their own (overview, reference, about). It is the weaker signal, and it
  *      is not allowed to contradict recent real traffic.
  *
+ * COLD STARTS. The backend is a free-tier Render service: it is suspended after
+ * fifteen idle minutes and takes appreciably longer to boot than a single probe
+ * is willing to wait. A probe that fails before the backend has *ever* answered
+ * in this session is therefore not evidence of an outage — it is the expected
+ * shape of a first visit. Until the cold-start budget is spent, such a failure
+ * reports `waking`, not `offline`. A CORS rejection is exempt: the server
+ * answered, so it is awake, and the verdict is immediate.
+ *
  * States:
  *   unconfigured -> VITE_API_BASE_URL was never set in this build
  *   checking     -> a probe is in flight and has been fast so far
- *   waking       -> the probe has been in flight past COLD_START_HINT_MS
+ *   waking       -> the probe is slow, or is failing inside the cold-start budget
  *   online       -> the backend answered
- *   offline      -> nothing reached it, and no real request has either
+ *   offline      -> nothing reached it, no real request has either, and the
+ *                   cold-start budget is spent
  */
 
 export type BackendStatus =
@@ -35,8 +44,19 @@ const COLD_START_HINT_MS = 6_000;
 const CORS_CHECK_TIMEOUT_MS = 8_000;
 const RETRY_WHEN_DOWN_MS = 15_000;
 const RETRY_WHEN_UP_MS = 120_000;
+/** Probe often while waking: a cold instance can come up at any moment. */
+const RETRY_WHEN_WAKING_MS = 5_000;
 /** How long a confirmed round trip keeps outranking a failed probe. */
 const TRAFFIC_GRACE_MS = 60_000;
+/**
+ * How long after boot a still-unreachable backend is called "waking" instead of
+ * "offline". Render's free plan routinely needs 30-60s to resume a suspended
+ * service, so anything under a minute produces a red banner on every first
+ * visit that then clears itself — which is exactly the noise this budget
+ * exists to prevent. Past it, the backend really is not answering, and saying
+ * so is the honest report.
+ */
+const COLD_START_BUDGET_MS = 90_000;
 
 interface BackendStatusState {
   status: BackendStatus;
@@ -44,6 +64,8 @@ interface BackendStatusState {
   latencyMs: number | null;
   lastCheckedAt: number | null;
   lastReachableAt: number | null;
+  /** When this tab started caring about the backend; origin of the budget. */
+  bootedAt: number;
   consecutiveFailures: number;
   check: () => Promise<void>;
   startPolling: () => () => void;
@@ -91,6 +113,17 @@ async function serverAnsweredDespiteCors(): Promise<boolean> {
   }
 }
 
+/**
+ * True while a failure is still better explained by a booting backend than by a
+ * dead one: nothing has reached it yet in this session, and the budget is live.
+ * Once anything has come back, the backend has proved it exists and later
+ * failures are reported at face value.
+ */
+function mayStillBeWaking(): boolean {
+  const { lastReachableAt, bootedAt } = useBackendStatus.getState();
+  return lastReachableAt === null && Date.now() - bootedAt < COLD_START_BUDGET_MS;
+}
+
 let inFlight: Promise<void> | null = null;
 
 export const useBackendStatus = create<BackendStatusState>((set, get) => ({
@@ -101,6 +134,7 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
   latencyMs: null,
   lastCheckedAt: null,
   lastReachableAt: null,
+  bootedAt: Date.now(),
   consecutiveFailures: 0,
 
   check: async () => {
@@ -121,7 +155,9 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
       }
     }, COLD_START_HINT_MS);
 
-    set({ status: get().status === "online" ? "online" : "checking" });
+    // The status is deliberately left alone while the new probe runs: dropping
+    // back to "checking" on every retry made the banner blink out and back in.
+    // The initial state is already "checking", so the first probe reads right.
 
     inFlight = (async () => {
       try {
@@ -186,7 +222,9 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
         }
 
         set({
-          status: "offline",
+          // A first visit to a suspended instance fails exactly like an outage
+          // does; only the clock tells them apart.
+          status: mayStillBeWaking() ? "waking" : "offline",
           detail: describeFailure(error),
           latencyMs: null,
           lastCheckedAt: Date.now(),
@@ -209,8 +247,15 @@ export const useBackendStatus = create<BackendStatusState>((set, get) => ({
     const schedule = () => {
       if (stopped) return;
       // Recovery should be quick, so a down backend is retried on a short fixed
-      // interval rather than backing off into a multi-minute silence.
-      const delay = get().status === "online" ? RETRY_WHEN_UP_MS : RETRY_WHEN_DOWN_MS;
+      // interval rather than backing off into a multi-minute silence — and a
+      // waking one faster still, since it may finish booting at any moment.
+      const status = get().status;
+      const delay =
+        status === "online"
+          ? RETRY_WHEN_UP_MS
+          : status === "waking" || status === "checking"
+            ? RETRY_WHEN_WAKING_MS
+            : RETRY_WHEN_DOWN_MS;
       timerId = window.setTimeout(run, delay);
     };
 
@@ -243,8 +288,10 @@ subscribeReachability((event) => {
     return;
   }
 
+  // Same rule as the probe: a request that failed to land before anything has
+  // ever landed is not proof of an outage during a cold start.
   useBackendStatus.setState({
-    status: "offline",
+    status: mayStillBeWaking() ? "waking" : "offline",
     detail: event.detail ?? null,
     lastCheckedAt: event.at,
   });

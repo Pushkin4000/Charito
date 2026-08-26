@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Outlet, NavLink, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Menu, X } from "lucide-react";
-import { BackendBar, useBackendProbe } from "@/app/components/BackendNotice";
+import { useBackendProbe } from "@/app/components/BackendProbe";
 import { useBackendStatus, type BackendStatus } from "@/app/lib/backend-status";
 
 const NAV = [
@@ -17,18 +17,17 @@ const REPO_URL = "https://github.com/Pushkin4000/Intern-Mini/tree/Deploy-branch"
 /**
  * Reachability tell in the header.
  *
- * It reports only what has actually been observed. `checking` and `waking` both
- * mean the app has no evidence yet, and neither earns a place in the header: a
- * cautious-looking dot on every cold load is a worse lie than silence, because
- * it reads as a fault to anyone who did not write it. The tell appears when
- * there is something real to say -- the backend answered, or it demonstrably
- * did not.
+ * It speaks only to confirm, never to warn. `online` is the one state that
+ * renders; everything else -- no evidence yet, refused origin, nothing
+ * answering -- renders as nothing at all, because this site does not report
+ * reachability faults to its visitors.
+ *
+ * The consequence is worth being explicit about: when the backend is down the
+ * header is silent rather than red, and a visitor's first sign of trouble will
+ * be a run that fails. That failure is still reported, against the run itself.
  */
 const TELL: Partial<Record<BackendStatus, { color: string; text: string }>> = {
   online: { color: "var(--ok)", text: "API online" },
-  offline: { color: "var(--bad)", text: "API offline" },
-  blocked: { color: "var(--bad)", text: "CORS blocked" },
-  unconfigured: { color: "var(--bad)", text: "No API URL" },
 };
 
 function StatusTell() {
@@ -173,8 +172,6 @@ export function Layout() {
           )}
         </AnimatePresence>
       </header>
-
-      <BackendBar />
 
       <main style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <Outlet />

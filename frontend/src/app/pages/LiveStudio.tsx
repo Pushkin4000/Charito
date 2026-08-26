@@ -28,7 +28,6 @@ import {
   saveApiKey,
 } from "@/app/lib/api-key-storage";
 import { useAgentStore } from "@/app/store/useAgentStore";
-import { BackendPanel } from "@/app/components/BackendNotice";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    The studio runs on the dark surface — same two materials as the rest of the
@@ -1211,8 +1210,6 @@ export function LiveStudio() {
                   onScroll={handleLogsScroll}
                   style={{ flex: 1, overflowY: "auto", padding: "4px 0 12px", minHeight: 0 }}
                 >
-                  <BackendPanel />
-
                   {logs.length === 0 && (
                     <p className="meta" style={{ padding: "16px 12px", color: "var(--ink-4)", lineHeight: 1.7 }}>
                       Nothing yet. Node transitions, iteration counts, durations and errors land
